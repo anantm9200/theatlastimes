@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { proxyToDgx } from "../api/dgx-proxy.js";
+import handler from "../api/index.js";
 
 test("Vercel gateway keeps requests on the fixed DGX origin and replaces untrusted forwarding credentials", async () => {
   const previous = { origin: process.env.DGX_ORIGIN, key: process.env.DGX_GATEWAY_KEY, fetch: globalThis.fetch };
@@ -23,6 +24,24 @@ test("Vercel gateway keeps requests on the fixed DGX origin and replaces untrust
     assert.ok(output.headers["Set-Cookie"]);
   } finally {
     globalThis.fetch = previous.fetch;
+    for (const [key, value] of Object.entries({ DGX_ORIGIN: previous.origin, DGX_GATEWAY_KEY: previous.key })) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  }
+});
+
+test("gateway failures expose no upstream credentials in responses or diagnostics", async () => {
+  const previous = { origin: process.env.DGX_ORIGIN, key: process.env.DGX_GATEWAY_KEY, fetch: globalThis.fetch, error: console.error };
+  process.env.DGX_ORIGIN = "https://dgx.example:8443"; process.env.DGX_GATEWAY_KEY = "a".repeat(64);
+  const logs: unknown[][] = []; console.error = (...args: unknown[]) => { logs.push(args); };
+  globalThis.fetch = (async () => { throw new Error("https://upstream.invalid/?token=private-credential", { cause: { code: "ENOTFOUND" } }); }) as typeof fetch;
+  let body = "", status = 0;
+  const res = { setHeader: () => {}, end: (value: string) => { body = value; }, set statusCode(value: number) { status = value; } };
+  try {
+    await handler({ method: "GET", url: "/api/health", headers: {} }, res);
+    assert.equal(status, 503); assert.match(body, /temporarily unavailable/);
+    assert.equal((logs[0][1] as any).reason, "ENOTFOUND");
+    assert.doesNotMatch(JSON.stringify(logs) + body, /private-credential|upstream\.invalid|aaaaaaa/);
+  } finally {
+    globalThis.fetch = previous.fetch; console.error = previous.error;
     for (const [key, value] of Object.entries({ DGX_ORIGIN: previous.origin, DGX_GATEWAY_KEY: previous.key })) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
 });
