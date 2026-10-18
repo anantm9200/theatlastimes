@@ -123,10 +123,6 @@ export default function ArticleView() {
                  <Printer className="w-5 h-5" />
                  <span className="hidden sm:inline">Print</span>
                  
-                 {/* Tooltip for iframe users */}
-                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black text-white text-[10px] py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded">
-                     Use the top-right button to open in a new tab first
-                 </div>
              </button>
              <button 
                  aria-label={saved ? "Remove article from briefcase" : "Save article to briefcase"}
