@@ -45,7 +45,7 @@ export function normalizeSourceUrl(value: unknown, field = "originalUrl"): strin
 
 export const canonicalSourceUrl = (value: string): string => normalizeSourceUrl(value);
 
-const escapeHtml = (text: string): string => text.replace(/[&<>\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]!);
+export const escapeHtml = (text: string): string => text.replace(/[&<>\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]!);
 
 function date(value: unknown, field: string): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
@@ -138,6 +138,7 @@ export function validateArticle(input: unknown, existing?: Article): Article {
     authorName: 160, reviewNote: 4000, generatedBy: 200, imageType: 80, imageSource: 200,
     imageLicense: 1000, imageCredit: 500, imageCaption: 1000, whyItMatters: 5000,
     detailedHumanizedSummary: 15000, subCategory: 80, country: 80, snippet: 5000,
+    publisherId: 100, publisherImageCredit: 500, sourceAuthor: 200, textLicense: 1000,
   } as const;
   for (const [field, max] of Object.entries(textFields)) {
     const value = plain(body[field], field, max, existing?.[field as keyof Article] as string | undefined);
@@ -145,6 +146,21 @@ export function validateArticle(input: unknown, existing?: Article): Article {
   }
   const imageUrl = normalizeSourceUrl(has(body, "imageUrl") ? body.imageUrl : existing?.imageUrl, "imageUrl");
   if (imageUrl) article.imageUrl = imageUrl;
+  for (const field of ["publisherImageUrl", "textLicenseUrl"] as const) {
+    const value = normalizeSourceUrl(has(body, field) ? body[field] : existing?.[field], field);
+    if (value) article[field] = value;
+  }
+  const coverage = body.coverage ?? existing?.coverage;
+  if (coverage !== undefined) { if (!["global", "local", "unknown"].includes(coverage as string)) fail("Invalid coverage"); article.coverage = coverage as Article["coverage"]; }
+  const mode = body.publicationMode ?? existing?.publicationMode;
+  if (mode !== undefined) { if (!["human", "automatic"].includes(mode as string)) fail("Invalid publication mode"); article.publicationMode = mode as Article["publicationMode"]; }
+  const check = body.automationCheck ?? existing?.automationCheck;
+  if (check !== undefined) {
+    if (!check || typeof check !== "object" || Array.isArray(check)) fail("Invalid automation check");
+    const value = check as Record<string, unknown>;
+    if (!["passed", "held"].includes(value.verdict as string)) fail("Invalid automation verdict");
+    article.automationCheck = { verdict: value.verdict as "passed" | "held", reason: plain(value.reason, "reason", 1000), checkedAt: date(value.checkedAt, "checkedAt") || now, version: plain(value.version, "version", 100) };
+  }
   article.keyPoints = strings(body.keyPoints, "keyPoints", 20, 1000, existing?.keyPoints);
   const entities = body.entities ?? existing?.entities;
   if (entities !== undefined) {

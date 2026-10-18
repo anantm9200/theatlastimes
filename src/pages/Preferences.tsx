@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import SeoHead from "../lib/SeoHead";
 
 const regions = ["Global", "North America", "Europe", "Asia", "Middle East", "Africa", "Latin America"];
-const categories = ["World", "Business", "Technology", "AI", "Geopolitics", "Economy", "Finance", "Politics", "Climate", "Science"];
+const categories = ["World", "Politics", "Business", "Technology", "Science", "Climate", "Health", "Sports", "Culture"];
 function loadPreferences() {
   try {
     const value = JSON.parse(localStorage.getItem("atlas-reader-preferences") || "{}");

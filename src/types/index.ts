@@ -11,6 +11,15 @@ export interface Article {
   imageLicense?: string;
   imageCredit?: string;
   imageCaption?: string;
+  publisherId?: string;
+  publisherImageUrl?: string;
+  publisherImageCredit?: string;
+  sourceAuthor?: string;
+  textLicense?: string;
+  textLicenseUrl?: string;
+  coverage?: "global" | "local" | "unknown";
+  publicationMode?: "human" | "automatic";
+  automationCheck?: { verdict: "passed" | "held"; reason: string; checkedAt: string; version: string };
   publishedAt: string;
   fetchedAt: string;
   category: string;

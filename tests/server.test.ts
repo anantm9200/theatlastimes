@@ -41,8 +41,8 @@ test('HTTP editorial workflow enforces roles, privacy, review, persistence, iden
     assert.equal((await request(`/api/admin/news/${draft.id}`, 'GET', undefined, editorKey)).json.data.title, draft.title);
     assert.equal((await request(`/api/news/${draft.id}`, 'PUT', { status: 'published' }, ingestKey)).status, 403);
     assert.equal((await request(`/api/news/${draft.id}`, 'PUT', { status: 'published' }, editorKey)).status, 400);
-    assert.equal((await request(`/api/news/${draft.id}`, 'PUT', { status: 'published', authorName: '<b></b>', reviewNote: 'Checked source and rights.' }, editorKey)).status, 400);
-    const published = await request(`/api/news/${draft.id}`, 'PUT', { status: 'published', authorName: 'Integration test editor', reviewNote: 'Checked the source, dates, facts and image rights.' }, editorKey);
+    assert.equal((await request(`/api/news/${draft.id}`, 'PUT', { status: 'published', coverage: 'global', authorName: '<b></b>', reviewNote: 'Checked source and rights.' }, editorKey)).status, 400);
+    const published = await request(`/api/news/${draft.id}`, 'PUT', { status: 'published', coverage: 'global', authorName: 'Integration test editor', reviewNote: 'Checked the source, dates, facts and image rights.' }, editorKey);
     assert.equal(published.status, 200); assert.ok(Date.parse(published.json.data.publishedAt) > Date.parse(draft.sourcePublishedAt));
     assert.equal((await request(`/api/news/${draft.slug}`)).json.data.id, draft.id);
     assert.equal((await request(`/api/news/${draft.id}`)).json.data.reviewNote, undefined);
@@ -97,4 +97,17 @@ test('AI service returns validated private drafts; malformed output leaves sourc
     assert.deepEqual(store.get(article.id, true), saved);
     assert.throws(() => parseAnalysis('{"keyPoints": []}'), /invalid analysis/);
   } finally { await api.close(); await inference.close(); store.close(); delete process.env.AI_PROVIDER; }
+});
+
+test('public API and server-rendered feed briefs keep the full checking text private', async () => {
+  const store = new NewsStore(':memory:');
+  const draft = validateArticle({ title: 'A global source brief', originalUrl: 'https://source.example/brief', publisherId: 'approved-source', sourceName: 'Original Publisher', summary: 'An attributed source excerpt.', fullContent: '<p>Internal full source text for the grounding check.</p>', detailedHumanizedSummary: 'The public generated brief.', aiGenerated: true, publicationMode: 'automatic', status: 'published' });
+  store.save(draft); const api = await serve(createApp(store).app);
+  try {
+    const response = await fetch(api.base + `/api/news/${draft.id}`), { data } = await response.json() as any;
+    assert.equal(data.fullContent, undefined); assert.equal(data.detailedHumanizedSummary, 'The public generated brief.');
+    const html = await renderPage('<html><head></head><body><div id="root"></div></body></html>', '/article/' + draft.id, store, 'https://atlas.example');
+    assert.doesNotMatch(html.html, /Internal full source text/); assert.match(html.html, /public generated brief/);
+    assert.match(store.get(draft.id, true)!.fullContent!, /Internal full source text/);
+  } finally { await api.close(); store.close(); }
 });

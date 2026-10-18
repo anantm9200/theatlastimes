@@ -1,107 +1,31 @@
-# Vercel, MongoDB Atlas and DGX deployment
+# Vercel with DGX-local MongoDB
 
-The production architecture is:
+Current architecture: **Vercel assets + authenticated HTTPS forwarding → DGX web/API → private local MongoDB**, with collection, model inference and publication checks on the DGX. No Firebase connection is required. The previous Atlas preview remains a rollback source; [the original audit](AUDIT.md) is historical.
 
-```text
-Readers / editors
-       |
-       v
-Vercel website + authenticated API
-       |
-       v
-MongoDB Atlas: articles, aliases, audit events, durable analysis jobs
-       ^
-       | outbound database connection
-DGX worker ----> existing local model endpoint
-```
+## Web configuration
 
-Vercel serves published pages and records authenticated editorial changes. Analysis requests enqueue durable jobs. The DGX worker claims jobs, runs the local model, validates the result and stores an unreviewed draft. An editor publishes separately. A private Spark model endpoint does not need to be publicly exposed to Vercel.
+Set server-only `DGX_ORIGIN` to the trusted HTTPS gateway origin (including its port, without a path), and `DGX_GATEWAY_KEY` to the independent secret also configured on the DGX. Do not use a browser-visible `VITE_*` variable. Configure the actual public `SITE_URL` on the DGX. MongoDB credentials and editor password hashes stay off Vercel in this mode.
 
-Atlas and a separate Spark worker are provisioned for the protected preview. The final section records verified checks and the remaining production cutover work; configuration examples alone do not establish a production rollout.
+`api/index.js` forwards dynamic requests when `DGX_ORIGIN` is configured. It fixes the upstream origin, injects gateway authentication, forwards editor sessions and CSRF headers, preserves status/cookies/discovery metadata and never starts a collector or model request. Vercel-overwritten client IPs are passed through the authenticated gateway for rate limiting. Reader-supplied gateway/forwarding credentials are replaced.
 
-## 1. Connect the GitHub project
+If the DGX or its configuration is unavailable, the gateway reports unavailable rather than creating empty local storage or fictional news. There is no database/model fallback in Vercel. Restore an earlier immutable deployment only as an explicit rollback.
 
-In Vercel, import [theatlastimes](https://github.com/anantm9200/theatlastimes) under the intended personal account or team. Use the repository's build and function configuration. The Node runtime is 22; production web assets and server output are built from the committed lockfile.
+## Secure connection
 
-Review the selected production branch, project scope and deployment region before deploying. Keep preview deployments separate from production data. Do not attach an untrusted preview to the production database or expose production editor credentials there.
+The DGX web port binds loopback and requires the gateway key on every request, including health. A stable HTTPS tunnel exposes that protected application only. MongoDB and the model remain loopback-only. Tailscale Funnel requires the tailnet owner's enablement before a Vercel function outside the tailnet can reach it; ordinary private Tailscale SSH access alone is insufficient. See [Tailscale's requirements](https://tailscale.com/docs/features/tailscale-funnel).
 
-## 2. Provision MongoDB through Vercel
+Current status: private DGX application and database are deployed and tested. Funnel reported disabled for the tailnet; its owner enablement is pending. Do not claim the Vercel→DGX cutover succeeded until health, authenticated mutations, editor cookies, server-rendered articles, RSS/sitemaps and missing-page responses pass through the deployed gateway.
 
-Open the project's Storage/Marketplace integrations and select the native [MongoDB Atlas integration](https://vercel.com/marketplace/mongodbatlas/atlas). Choose or provision the intended resource and connect it to this Vercel project. The integration provisions MongoDB Atlas resources and injects connection settings into selected project environments; the database runs in Atlas. See [MongoDB's Vercel integration guide](https://www.mongodb.com/docs/atlas/reference/partner-integrations/vercel/) and [Vercel Marketplace storage documentation](https://vercel.com/docs/marketplace-storage).
+Deploy the same application revision/assets to both services. The protected Vercel preview should be checked before the public domain is switched. Keep a private database snapshot and the former configuration for rollback.
 
-Complete any account, plan, billing and resource choices in the relevant account. Verify which environments receive the integration's credentials and redeploy after adding or changing them. Production and previews should use different databases or separate resources.
+## Repository and production boundary
 
-Use a database dedicated to this publication; the application's default name is `the_atlas_times`, configurable through `MONGODB_DB_NAME`. Both Vercel and the DGX worker must resolve to the same production database. The store and atomic job completion use MongoDB transactions, so a standalone `mongod` is insufficient; use an Atlas cluster or a properly configured replica set/sharded deployment. See [MongoDB transaction deployment requirements](https://www.mongodb.com/docs/manual/core/transactions-production-consideration/).
+All Git changes for this task belong only to `anantm9200/theatlastimes`. The existing live Vercel project's Git link was `The-Atlas-Times---V2` during the audit. Its production connection/domain have not been switched as part of the pending gateway step. Resolve that intended production connection before allowing automatic Git deployments to replace the new setup.
 
-Check Atlas network access for both services and review the integration's generated settings. Vercel's outbound addressing and Atlas access-list requirements depend on the selected integration/network setup. Use TLS and appropriate database credentials; do not put connection strings into client-visible environment variables, logs or committed files.
+The full migration count is 2,196 deduplicated drafts from the saved 2,353-record public snapshot, with 6,745 reserved identifiers/aliases. Imported content remains private unless explicitly reviewed; newly collected approved global source briefs may publish automatically after the implemented checks. Private legacy stores outside that inventory have not been claimed as exported.
 
-## 3. Configure the web environment
+Run/database backups and inference job state live on the DGX. Large full database backups should use the DGX backup tools rather than Vercel response bodies. Submit the public sitemaps and inspect production URLs after the actual cutover; no indexing or AI-citation guarantee is implied.
 
-Configure the production environment in Vercel:
+## Build on the DGX
 
-| Setting | Purpose |
-| --- | --- |
-| `MONGODB_URI` | Secret Atlas connection string injected by the integration or explicitly configured server-side |
-| `MONGODB_DB_NAME` | Optional override of `the_atlas_times`; must agree with the worker |
-| `AI_EXECUTION=worker` | Queue analysis for the DGX worker; Vercel also enforces queue execution |
-| `SITE_URL` | Actual canonical publication origin, including `https://` |
-| `NEWS_API_KEY` | Strong server-to-server editorial credential, at least 32 characters |
-| `NEWS_INGEST_KEY` | Independent draft-ingestion credential, at least 32 characters |
-| Firebase server authentication settings | Required if using Firebase email/password users with editor/admin claims |
-
-The Vercel web role must use MongoDB. Do not configure `NEWS_DB_PATH` as a production database inside a function: a function's local filesystem is not shared durable storage. Keep scheduled ingestion and model execution on the DGX worker. Public article reads must not initiate paid inference.
-
-For browser editorial access, provision a real Firebase account, its explicit editor/admin claim and the trusted server verification credentials. An ordinary signed-in reader is not an editor. If that provisioning is incomplete, the server-to-server API credential is the available editorial mechanism; do not weaken the role check to make the UI appear operational.
-
-Set model endpoint credentials on the DGX worker. The Vercel role should enqueue jobs rather than call a private DGX address. Vercel Functions have request-duration and resource limits, which is another reason to keep independently running GPU work behind the durable queue; verify the current limits for the selected plan in [Vercel's function documentation](https://vercel.com/docs/functions/limitations).
-
-## 4. Configure the DGX worker
-
-Follow [DGX.md](DGX.md). Supply the production MongoDB connection/database, an existing reachable local model endpoint, the exact served model ID and any inference authentication. Keep API editor secrets off the worker when its direct database job processing does not need them.
-
-The same image includes the web and worker entry points. On the DGX host:
-
-```sh
-docker compose --profile dgx up --build -d dgx-worker
-docker compose logs --tail 50 dgx-worker
-```
-
-The worker opens no listening port. Its DGX Linux profile uses the host network so it can call the existing loopback-only inference service without exposing that API publicly; it also needs outbound Atlas access. For other network modes, provide an explicitly reachable private bridge, tunnel or shared network. See [Docker's host networking behavior](https://docs.docker.com/engine/network/drivers/host/).
-
-Feed ingestion remains opt-in: approve the source URLs and permissions before setting `FEED_URLS` and enabling ingestion on the worker. Do not start duplicate periodic ingesters on Vercel. All collected/generated items remain drafts until editorial review.
-
-## 5. Migrate existing records deliberately
-
-The original Firestore/PostgreSQL stores are not automatically imported, converted or deleted. Export them using trusted credentials, retain a private backup, inspect the records and import through the supported draft workflow into the intended MongoDB database. Preserve supported aliases for existing article links, remove invented scores/dates and unverified imagery, and review every record before publication.
-
-Use `news:sync` for API-based draft transfers when appropriate. Confirm import counts and failures. Do not assume that setting `MONGODB_URI` migrates a local SQLite file or an unrelated pre-existing news worker.
-
-## 6. Verify before switching the public domain
-
-Demonstrate each boundary using non-production fixtures first:
-
-1. Web health confirms the shared store is reachable.
-2. Drafts stay absent from public HTML, the public API, RSS and sitemaps.
-3. Ingestion credentials can create drafts but cannot publish, delete or export editorial data.
-4. An analysis request creates a durable job; the DGX worker claims it and records a validated result.
-5. Restarting the worker preserves/reclaims queued work according to the queue policy; failures are visible and retryable.
-6. An editor reviews and publishes; the Vercel page source contains the actual headline, source, dates and structured data.
-7. RSS and sitemap output uses the canonical public origin; missing/unpublished articles return a real missing-page response.
-8. A separate-database backup restore succeeds.
-
-Inspect Vercel function logs, authenticated admin status/job/audit outputs and DGX worker logs. A generic healthy response is not evidence that queued work is being processed. The existing separate DGX news worker observed during this audit had a large backlog and failures despite reporting healthy; investigate capacity before scheduling additional workloads.
-
-After validation, configure the intended custom domain in Vercel and set `SITE_URL` to match it. Submit the sitemaps in Search Console and inspect real deployed URLs. The SEO changes support discovery; they do not guarantee indexing, AI citations or rich results.
-
-## Verified rollout status — 18 October 2026
-
-- Atlas resource `atlas-times-news` was provisioned through the `mongodbatlas/atlas` Marketplace product and connected to this project's **Preview** environment. The initial `mongodb-atlas` CLI identifier was incorrect; it was corrected.
-- Database `the_atlas_times_preview` contains 2,196 canonical drafts from the 2,353-record public snapshot, with 6,745 reserved identifiers/aliases. Every saved public article ID resolves. No imported record is published. Private/backing-store content outside the public API has not been claimed as exported.
-- The Spark runs `atlas-times-worker.service` as the existing `dgxadmin` user's enabled service, from `/home/dgxadmin/theatlastimes-worker`. It uses the preview Atlas database and the existing loopback Qwen endpoint. Ingestion is disabled until authorized feeds are selected; analysis concurrency is one.
-- The existing Vercel project is connected to `anantm9200/The-Atlas-Times---V2`, rather than the requested `anantm9200/theatlastimes` repository. Its production Git link and domain remain in place. Review the intended repository/cutover before changing that link.
-- Preview environment configuration includes MongoDB, queued analysis, the canonical origin and separate secret editorial/ingestion keys. Secrets and news backups are excluded from Git.
-- The protected [Vercel preview](https://the-atlas-times-q8xprl2j9-anant-icl.vercel.app) is deployed from the requested repository checkout. Live health, private editorial reads (2,196 drafts), public draft exclusion, page HTML, RSS, sitemaps and real 404 checks passed. Access requires Vercel deployment authorization.
-- The preview API created a private fixture and returned HTTP 202 for analysis. The installed Spark worker completed the job with validated Qwen output; the draft stayed private until an explicit fixture review/publication. Readable article HTML, JSON-LD, canonical links, RSS/sitemap inclusion and hidden private review notes passed. The fixture was deleted; the database returned to 2,196 drafts and zero published articles.
-- GitHub validation passed for implementation commit `643bcb8`, including 28 tests against a replica set, the production build, native serverless-module loading with require(ESM) disabled and the dependency audit. The final rate-limit deployment logs contain no warning/error records from these checks. Earlier ARM64 Docker runtime checks are recorded in the audit.
-
-Production cutover still requires reviewed publication choices, a full legacy-store inventory/export if private records exist, the intended Git repository connection, real Firebase editor claims, deployed Firestore rules, source permissions, backups and capacity monitoring. Switching an environment variable does not perform those editorial/release steps.
+Run `npm run build && npm run package:vercel` on the DGX. The packager writes a Vercel Build Output API artifact containing static assets and a small Node HTTPS relay with no database/model dependencies. Transfer that artifact to the linked deployment checkout and use `vercel deploy --prebuilt`. No local or Vercel recompilation is needed for this release workflow. See [Vercel Build Output API](https://vercel.com/docs/build-output-api).

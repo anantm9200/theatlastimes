@@ -21,7 +21,7 @@ export default function EditorialGate({ children }: { children: ReactNode }) {
     <SeoHead title="Editorial desk" noindex />
     <div className="flex flex-wrap gap-4 items-center justify-between border-b border-border py-4 text-sm">
       <Link to="/editorial" className="font-bold underline">Editorial desk</Link>
-      <span>{user.email}</span>
+      <span>{user.username}</span>
       <button onClick={() => { signOut().catch(() => setMessage("Sign-out failed. Try again.")); }} className="underline">Sign out</button>
     </div>
     {message && <p role="alert">{message}</p>}
@@ -32,7 +32,7 @@ export default function EditorialGate({ children }: { children: ReactNode }) {
     <h1 className="font-serif text-3xl font-bold">Editor sign-in</h1>
     {error && <p role="alert">{error}</p>}
     {user ? <><p>Your account does not have editor access. Ask the site operator to grant the editor role, then sign in again.</p><button className="underline" onClick={() => { signOut().catch(() => setMessage("Sign-out failed. Try again.")); }}>Sign out</button></> : <form onSubmit={submit} className="space-y-5">
-      <label className="block">Email<input autoComplete="username" type="email" required value={email} onChange={event => setEmail(event.target.value)} className="block w-full border p-3 mt-2" /></label>
+      <label className="block">Editor username<input autoComplete="username" type="text" required value={email} onChange={event => setEmail(event.target.value)} className="block w-full border p-3 mt-2" /></label>
       <label className="block">Password<input autoComplete="current-password" type="password" required value={password} onChange={event => setPassword(event.target.value)} className="block w-full border p-3 mt-2" /></label>
       <button disabled={submitting} className="bg-foreground text-background px-6 py-3 font-bold disabled:opacity-50">{submitting ? "Signing in…" : "Sign in"}</button>
     </form>}

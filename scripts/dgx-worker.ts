@@ -11,6 +11,10 @@ import { MongoNewsStore } from "../src/server/mongo-news-store";
 import { MongoNewsJobs, NewsJobLeaseError, safeJobError, type NewsAnalysisJob } from "../src/server/news-jobs";
 import { validateArticle } from "../src/server/news-validation";
 import { configuredFeeds, ingestFeeds } from "../src/server/feeds";
+import { Publishers } from "../src/server/publishers";
+import { DailyIngestion } from "../src/server/daily-ingestion";
+import { checkPublication, publicationHold, PUBLICATION_CHECK_VERSION } from "../src/server/auto-publication";
+import { selectNewsImage } from "../src/server/news-images";
 
 export interface AnalysisJobStore {
   get(id: string, includeUnpublished: boolean): Promise<Article | undefined>;
@@ -37,9 +41,21 @@ export async function processAnalysisJob(queue: AnalysisQueue, store: AnalysisJo
     const analysis = await analyze(article);
     if (lostLease || !await queue.owns(job)) return "lease-lost";
     const model = process.env.AI_MODEL || process.env.GEMINI_MODEL || "configured-model";
-    const updated = validateArticle({ ...analysis, status: "draft", aiGenerated: true, generatedBy: model, reviewNote: "", provenance: {
-      sourceUrls: [...new Set([article.originalUrl, ...(article.provenance?.sourceUrls || [])].filter(Boolean))],
-      retrievedAt: article.provenance?.retrievedAt || article.fetchedAt,
+    let publication: Partial<Article> = {};
+    if (process.env.AUTO_PUBLISH === "true" && job.requestedBy === "daily-ingestion" && store instanceof MongoNewsStore && article.publisherId) {
+      try {
+        const publisher = await new Publishers(store.db).get(article.publisherId);
+        const check = await checkPublication(article, analysis);
+        const hold = publicationHold(article, analysis, publisher, check);
+        publication = { coverage: check.isGlobal ? "global" : "local", category: check.category, automationCheck: { verdict: hold ? "held" : "passed", reason: hold || check.reason, checkedAt: new Date().toISOString(), version: PUBLICATION_CHECK_VERSION } };
+        if (!hold && publisher) publication = { ...publication, imageUrl: "", imageCredit: "", imageLicense: "", imageSource: "", imageCaption: "", imageType: "", ...await selectNewsImage(article, publisher, check.imageSearch), status: "published", publicationMode: "automatic", authorName: "The Atlas Times automated desk", reviewedAt: new Date().toISOString(), reviewNote: "Automated checks: approved source terms, attribution, freshness, global relevance, source evidence and supported numbers. No human review is implied." };
+      } catch {
+        publication = { automationCheck: { verdict: "held", reason: "Publication check was unavailable or returned invalid evidence", checkedAt: new Date().toISOString(), version: PUBLICATION_CHECK_VERSION } };
+      }
+    }
+    const updated = validateArticle({ ...analysis, status: "draft", aiGenerated: true, generatedBy: model, reviewNote: "", ...publication, provenance: {
+      sourceUrls: [...new Set([article.originalUrl, ...(job.requestedBy === "daily-ingestion" ? [] : article.provenance?.sourceUrls || [])].filter(Boolean))],
+      retrievedAt: job.requestedBy === "daily-ingestion" ? article.fetchedAt : article.provenance?.retrievedAt || article.fetchedAt,
       model,
       promptVersion: "source-only-summary-v1",
     } }, article);
@@ -64,18 +80,19 @@ export async function runDgxWorker(options: { once?: boolean } = {}): Promise<vo
   const pollMs = integer(process.env.DGX_WORKER_POLL_MS, 5000, 250, 60_000, "DGX_WORKER_POLL_MS");
   const concurrency = integer(process.env.DGX_WORKER_CONCURRENCY, 1, 1, 4, "DGX_WORKER_CONCURRENCY");
   const ingestionEnabled = process.env.ENABLE_INGESTION === "true";
-  const feedPollMs = integer(process.env.FEED_POLL_MS, 30 * 60_000, 60_000, 24 * 60 * 60_000, "FEED_POLL_MS");
   if (ingestionEnabled) configuredFeeds();
   const store = new MongoNewsStore();
   const queue = new MongoNewsJobs(store.client, store.database, { leaseMs, maxAttempts: attempts });
+  const publishers = new Publishers(store.db), daily = new DailyIngestion(store.db);
   let stopping = false;
   let feedTimer: ReturnType<typeof setInterval> | undefined;
   let feedPass: Promise<void> | undefined;
   const runFeedPass = () => {
     if (stopping || feedPass) return feedPass;
-    feedPass = ingestFeeds(store).then(result => {
-      console.log(`Source collection: ${result.inserted} private drafts, ${result.skipped} skipped, ${result.errors.length} source errors.`);
-    }).catch(error => { console.error(`Source collection failed: ${safeJobError(error)}`); }).finally(() => { feedPass = undefined; });
+    feedPass = daily.run(async () => {
+      const result = await ingestFeeds(store, undefined, { publishers: await publishers.list(), maxPerPublisher: integer(process.env.INGESTION_MAX_PER_PUBLISHER, 8, 1, 30, "INGESTION_MAX_PER_PUBLISHER"), onDraft: article => queue.enqueue(article, "daily-ingestion") });
+      console.log(`Daily collection: ${result.inserted} drafts, ${result.skipped} skipped, ${result.errors.length} source errors.`); return result;
+    }).then(() => {}).catch(error => { console.error(`Source collection failed: ${safeJobError(error)}`); }).finally(() => { feedPass = undefined; });
     return feedPass;
   };
   const waiting = new Set<() => void>();
@@ -90,11 +107,12 @@ export async function runDgxWorker(options: { once?: boolean } = {}): Promise<vo
   try {
     await store.initialize();
     await queue.ready();
+    await publishers.seed();
     if (ingestionEnabled) {
       await runFeedPass();
-      if (!options.once) { feedTimer = setInterval(() => { void runFeedPass(); }, feedPollMs); feedTimer.unref(); }
+      if (!options.once) { feedTimer = setInterval(() => { void runFeedPass(); }, 60000); feedTimer.unref(); }
     }
-    console.log(`DGX news worker ready; concurrency ${concurrency}. Reports remain drafts.`);
+    console.log(`DGX news worker ready; concurrency ${concurrency}. Automatic publication ${process.env.AUTO_PUBLISH === "true" ? "requires source and global-news checks" : "disabled"}.`);
     const outcomes = await Promise.allSettled(Array.from({ length: concurrency }, async (_, slot) => {
       const owner = `${os.hostname()}:${process.pid}:${slot}:${crypto.randomUUID()}`;
       do {

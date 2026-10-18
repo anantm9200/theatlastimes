@@ -1,5 +1,7 @@
 # Repository audit
 
+This is the historical first-stage audit and Atlas preview record. The subsequent requested architecture removes Firebase and runs local Docker MongoDB plus daily checked publication on the DGX. Use [the current DGX guide](DGX.md), [Vercel gateway status](VERCEL.md) and [source/image policy](SOURCES.md) for current operation.
+
 Audit dates: 17–18 October 2026. Scope: the supplied source repository, local build and API behavior, dependency metadata, and the configured DGX connection. The validation record below distinguishes source checks, the protected Vercel preview, Atlas migration and actual Spark execution. The existing public website was not cut over; Search Console, publisher contracts and private legacy-store completeness remain outside the verified scope.
 
 ## Assessment

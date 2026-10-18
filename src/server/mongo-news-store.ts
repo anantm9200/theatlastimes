@@ -2,6 +2,7 @@ import { MongoClient, type ClientSession, type Collection, type Db, type Filter 
 import type { Article } from "../types/index.ts";
 import { ArticleValidationError, normalizeSourceUrl, validateArticle } from "./news-validation.ts";
 import { NewsConflictError, type NewsAuditEvent, type NewsListOptions, type NewsStoreAdapter } from "./store-types.ts";
+import { publicImages } from "./publishers";
 
 interface ArticleDocument {
   _id: string;
@@ -79,7 +80,8 @@ export class MongoNewsStore implements NewsStoreAdapter {
     }
     const offset = Number.isFinite(options.offset) ? Math.max(0, Math.floor(options.offset!)) : 0;
     const docs = await this.articles.find(filter).sort({ sortAt: -1, _id: 1 }).skip(offset).limit(bounded(options.limit, 100, 1000)).toArray();
-    return docs.map(document => copy(document.article));
+    const articles = docs.map(document => copy(document.article));
+    return status === "published" ? publicImages(this.db, articles) : articles;
   }
 
   private async find(identifier: string, session?: ClientSession): Promise<ArticleDocument | null> {
@@ -92,7 +94,9 @@ export class MongoNewsStore implements NewsStoreAdapter {
   async get(idOrSlug: string, includeUnpublished = false): Promise<Article | undefined> {
     await this.initialize();
     const found = await this.find(idOrSlug);
-    return found && (includeUnpublished || found.status === "published") ? copy(found.article) : undefined;
+    if (!found || (!includeUnpublished && found.status !== "published")) return undefined;
+    const article = copy(found.article);
+    return includeUnpublished ? article : (await publicImages(this.db, [article]))[0];
   }
 
   async count(status: "published" | "draft" | "archived" = "published"): Promise<number> {

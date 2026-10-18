@@ -18,6 +18,9 @@ import { renderPage, escapeHtml } from "./src/server/html";
 import { articlePath, siteOrigin } from "./src/lib/seo";
 import { plainText } from "./src/lib/seo";
 import { rateLimitClientKey } from "./src/server/client-ip";
+import { constantEqual, EditorSessions, sessionToken, writeSessionCookie } from "./src/server/editor-sessions";
+import { Publishers, NEWS_CATEGORIES } from "./src/server/publishers";
+import { publicArticle } from "./src/server/public-article";
 
 function integer(value: unknown, fallback: number, max: number) {
   if (value === undefined) return fallback;
@@ -35,25 +38,49 @@ export function createApp(store: NewsStoreAdapter = new NewsStore(), jobs?: Mong
   if (process.env.NEWS_API_KEY && process.env.NEWS_API_KEY === process.env.NEWS_INGEST_KEY) throw new Error("Editor and ingestion credentials must be different");
   const origin = siteOrigin(process.env.SITE_URL || process.env.APP_URL);
   app.disable("x-powered-by");
+  const sessions = store instanceof MongoNewsStore ? new EditorSessions(store.db) : undefined;
+  const publishers = store instanceof MongoNewsStore ? new Publishers(store.db) : undefined;
+  app.locals.editorSessions = sessions;
+  if (process.env.DGX_GATEWAY_KEY) {
+    if (process.env.DGX_GATEWAY_KEY.length < 32) throw new Error("Use a strong DGX gateway key");
+    app.use((req, res, next) => {
+      if (!constantEqual(req.get("X-Atlas-Gateway-Key") || "", process.env.DGX_GATEWAY_KEY!)) { res.status(403).json({ error: "Gateway authentication required" }); return; }
+      req.headers["x-real-ip"] = req.headers["x-atlas-client-ip"];
+      next();
+    });
+  }
   if (process.env.TRUST_PROXY_HOPS) app.set("trust proxy", integer(process.env.TRUST_PROXY_HOPS, 0, 5));
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); res.setHeader("X-Frame-Options", "DENY"); next();
   });
   app.use(express.json({ limit: "256kb" }));
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); res.setHeader("X-Robots-Tag", "noindex"); next(); });
-  const platformRateKey = process.env.VERCEL === "1" ? { keyGenerator: (request: express.Request) => rateLimitClientKey(request, true) } : {};
+  const platformRateKey = process.env.VERCEL === "1" || process.env.DGX_GATEWAY_KEY ? { keyGenerator: (request: express.Request) => rateLimitClientKey(request, true) } : {};
   app.use("/api", rateLimit({ ...platformRateKey, windowMs: 60000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false }));
   const expensiveLimit = rateLimit({ ...platformRateKey, windowMs: 15 * 60000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false });
   const asyncRoute = (handler: express.RequestHandler): express.RequestHandler => (req, res, next) => { Promise.resolve(handler(req, res, next)).catch(next); };
   const route = (method: "get" | "post" | "put" | "delete", pathname: string, ...handlers: express.RequestHandler[]) => app[method](pathname, ...handlers.map(asyncRoute));
+  route("post", "/api/auth/login", expensiveLimit, async (req, res) => {
+    if (!sessions) { res.status(503).json({ error: "Editor accounts require MongoDB" }); return; }
+    const { username, password } = req.body || {};
+    if (typeof username !== "string" || username.length > 200 || typeof password !== "string" || password.length > 256) { res.status(400).json({ error: "Enter your editor username and password" }); return; }
+    const session = await sessions.login(username.trim(), password);
+    if (!session) { res.status(401).json({ error: "Sign-in failed" }); return; }
+    writeSessionCookie(res, session.token, session.expiresAt);
+    res.json({ user: { username: session.username }, csrfToken: session.csrfToken });
+  });
+  route("get", "/api/auth/session", async (req, res) => {
+    const token = sessionToken(req), username = token && sessions ? await sessions.verify(token) : undefined;
+    res.json({ user: username ? { username } : null, ...(username && token && sessions ? { csrfToken: sessions.csrf(token) } : {}) });
+  });
+  route("post", "/api/auth/logout", requireNewsAuth, requireEditor, async (req, res) => {
+    const token = sessionToken(req); if (token && sessions) await sessions.revoke(token);
+    writeSessionCookie(res, "", new Date(0)); res.json({ success: true });
+  });
   route("get", "/api/health", async (_req, res) => {
     try { await store.count(); res.json({ status: "ok", storage: "ready" }); }
     catch { res.status(503).json({ status: "unavailable", storage: "unavailable" }); }
   });
-  const publicArticle = (article: import("./src/types").Article) => {
-    const { reviewNote: _privateReviewNote, ...visible } = article;
-    return visible;
-  };
   route("get", "/api/news", async (req, res, next) => {
     try {
       const limit = integer(req.query.limit, 100, 1000);
@@ -83,19 +110,30 @@ export function createApp(store: NewsStoreAdapter = new NewsStore(), jobs?: Mong
   });
   route("get", "/api/admin/status", requireNewsAuth, requireEditor, async (_req, res) => res.json({ ai: aiConfiguration(), ingestion: ingestionState, counts: { published: await store.count(), draft: await store.count("draft"), archived: await store.count("archived") } }));
   route("get", "/api/admin/audit", requireNewsAuth, requireEditor, async (_req, res) => res.json({ data: await store.audit(100) }));
-  route("post", "/api/admin/ingest", requireNewsAuth, expensiveLimit, asyncRoute(async (_req, res) => { const result = await ingestFeeds(store); res.status(result.errors.length ? 502 : 200).json(result); }));
+  route("get", "/api/admin/publishers", requireNewsAuth, requireEditor, async (_req, res) => res.json({ data: publishers ? await publishers.list() : [] }));
+  route("put", "/api/admin/publishers/:id/images", requireNewsAuth, requireEditor, async (req, res) => {
+    if (!publishers || typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Provide an enabled setting for a configured publisher" }); return; }
+    try { await publishers.setImages(req.params.id, req.body.enabled); res.json({ success: true }); }
+    catch (error) { res.status(400).json({ error: (error as Error).message }); }
+  });
+  route("get", "/api/admin/ingestion", requireNewsAuth, requireEditor, async (_req, res) => {
+    res.json({ dailyAt: process.env.INGESTION_DAILY_AT || "06:00", timeZone: process.env.INGESTION_TIMEZONE || "Asia/Dubai", enabled: process.env.ENABLE_INGESTION === "true", autoPublish: process.env.AUTO_PUBLISH === "true", runs: store instanceof MongoNewsStore ? await store.db.collection("news_ingestion_runs").find({}, { projection: { owner: 0 } }).sort({ _id: -1 }).limit(10).toArray() : [] });
+  });
+  route("post", "/api/admin/ingest", requireNewsAuth, expensiveLimit, asyncRoute(async (_req, res) => { const result = await ingestFeeds(store, undefined, publishers ? { publishers: await publishers.list(), onDraft: article => jobs ? jobs.enqueue(article, "daily-ingestion") : Promise.resolve() } : {}); res.status(result.errors.length ? 502 : 200).json(result); }));
   route("get", "/api/news/:id", async (req, res) => { const article = await store.get(req.params.id); if (!article) { res.status(404).json({ error: "Article not found" }); return; } res.json({ data: publicArticle(article) }); });
   const publishing = (input: Record<string, any>, existing?: any) => {
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new ArticleValidationError("Expected an article object");
     if (input.status === "published" || (existing?.status === "published" && input.status !== "draft" && input.status !== "archived")) {
       if (typeof input.reviewNote !== "string" || input.reviewNote.trim().length < 10) throw new ArticleValidationError("Publishing requires a new review note of at least 10 characters confirming facts, sources, and rights");
-      return { ...input, reviewedAt: new Date().toISOString() };
+      return { ...input, publicationMode: "human", reviewedAt: new Date().toISOString() };
     }
     return input;
   };
   const validateForSave = (input: Record<string, any>, existing?: any) => {
     const article = validateArticle(publishing(input, existing), existing);
     if (article.status === "published") {
+      if (article.coverage !== "global") throw new ArticleValidationError("Only globally relevant news can be published; confirm global coverage");
+      if (!NEWS_CATEGORIES.includes(article.category as typeof NEWS_CATEGORIES[number])) throw new ArticleValidationError("Choose a supported global news category");
       if (!article.authorName || (article.reviewNote?.length || 0) < 10 || !plainText(article.aiSummary) || !plainText(article.fullContent)) throw new ArticleValidationError("Publishing requires an accountable author, a review note, a summary, and an article body");
       if (article.imageUrl && (!article.imageCredit || !article.imageLicense)) throw new ArticleValidationError("Publishing an image requires its credit and license or permission");
     }
@@ -182,6 +220,7 @@ export async function createProductionApp() {
   if (store instanceof MongoNewsStore) {
     jobs = new MongoNewsJobs(store.client, store.db);
     await jobs.ready();
+    await new Publishers(store.db).seed();
   }
   const context = createApp(store, jobs);
   mountPages(context.app, store, context.origin);
@@ -228,13 +267,7 @@ export async function startServer() {
   if (process.env.VERCEL === "1") throw new Error("Use the Vercel request handler; no background web process is supported there");
   const port = Number(process.env.PORT || 3000);
   const server = app.listen(port, process.env.HOST || "127.0.0.1", () => console.log(`The Atlas Times listening on port ${port}`));
-  let timer: ReturnType<typeof setInterval> | undefined;
-  if (process.env.ENABLE_INGESTION === "true") {
-    configuredFeeds();
-    const poll = () => ingestFeeds(store).catch(() => console.error("Ingestion failed"));
-    void poll(); timer = setInterval(poll, 30 * 60000); timer.unref();
-  }
-  const shutdown = () => { if (timer) clearInterval(timer); server.close(() => { void store.close(); void vite?.close(); }); };
+  const shutdown = () => { server.close(() => { void store.close(); void vite?.close(); }); };
   process.once("SIGTERM", shutdown); process.once("SIGINT", shutdown);
   return server;
 }

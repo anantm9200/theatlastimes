@@ -32,3 +32,6 @@ graphify-out/
 drizzle.config.ts
 .vercel/
 artifacts/
+*credentials*.txt
+*credentials*.json
+.vercel

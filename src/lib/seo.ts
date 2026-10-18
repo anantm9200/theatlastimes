@@ -1,4 +1,5 @@
 import type { Article } from "../types";
+import { decodeHTML } from "entities";
 
 export const SITE_NAME = "The Atlas Times";
 export const DEFAULT_DESCRIPTION = "Global news with linked sources and clearly labeled AI-assisted summaries, covering politics, business, technology, and the economy.";
@@ -30,7 +31,7 @@ export function safeExternalUrl(value?: string): string | undefined {
 }
 
 export function plainText(value = ""): string {
-  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return decodeHTML(value.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
 export function articleDescription(article: Article): string {
@@ -72,7 +73,7 @@ export function articleStructuredData(article: Article, origin: string) {
     publisher: publisherStructuredData(origin),
     ...(date ? { datePublished: date } : {}),
     ...(modified ? { dateModified: modified } : {}),
-    ...(article.authorName ? { author: { "@type": "Person", name: article.authorName } } : {}),
+    ...(article.authorName ? { author: { "@type": article.publicationMode === "automatic" ? "Organization" : "Person", name: article.authorName } } : {}),
     ...(safeExternalUrl(article.imageUrl) && !article.imageUrl?.includes("picsum.photos") && !article.imageUrl?.includes("/api/assets/visual") ? { image: [safeExternalUrl(article.imageUrl)] } : {}),
     ...(sourceUrl ? { citation: { "@type": "CreativeWork", url: sourceUrl, name: article.title, publisher: { "@type": "Organization", name: article.sourceName }, ...(sourceDate ? { datePublished: sourceDate } : {}) } } : {}),
   };

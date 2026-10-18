@@ -14,9 +14,10 @@
     "news:import": "tsx scripts/news-import.ts",
     "dgx:check": "tsx scripts/dgx-check.ts",
     "news:sync": "tsx scripts/news-sync.ts",
-    "news:export-legacy": "tsx scripts/export-legacy-firestore.ts",
     "worker": "node dist/dgx-worker.mjs",
-    "dgx:worker": "node dist/dgx-worker.mjs"
+    "dgx:worker": "node dist/dgx-worker.mjs",
+    "news:migrate-mongo": "tsx scripts/migrate-mongo.ts",
+    "package:vercel": "node scripts/package-vercel.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -36,8 +37,6 @@
     "entities": "^8.1.0",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
-    "firebase": "^12.14.0",
-    "firebase-admin": "^14.0.0",
     "lucide-react": "^0.546.0",
     "mongodb": "^7.7.0",
     "react": "^19.0.1",
@@ -64,8 +63,5 @@
   },
   "engines": {
     "node": ">=22.12 <23"
-  },
-  "overrides": {
-    "@grpc/grpc-js": "^1.14.6"
   }
 }

@@ -57,6 +57,8 @@ jobs:
         run: npm run build
       - name: Load serverless entry with native Node ESM
         run: node --no-experimental-require-module --input-type=module -e "await import('./api/index.js')"
+      - name: Package DGX deployment output
+        run: npm run package:vercel
       - name: Check production dependency advisories
         run: npm audit --omit=dev --audit-level=high
       - name: MongoDB diagnostics on failure

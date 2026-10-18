@@ -5,6 +5,7 @@ import { articleDescription, articlePath, articleStructuredData, safeExternalUrl
 import { newsDate, newsImage, readNews } from "../lib/newsApi";
 import { Article } from "../types";
 import { Badge } from "@/components/ui/badge";
+import NewsPhoto from "../components/NewsPhoto";
 import DOMPurify from 'dompurify';
 import { Bookmark, BookmarkCheck, Printer } from "lucide-react";
 import { useBriefcase } from "../lib/useBriefcase";
@@ -76,28 +77,19 @@ export default function ArticleView() {
          {article.title}
        </h1>
        
-       <div className="w-full mt-8 flex flex-col group">
-           <div className="w-full aspect-video md:aspect-[21/9] overflow-hidden border border-border relative">
-               <img src={sourceImage} alt={sourceImage === "/news-placeholder.svg" ? "No source image available" : article.imageCaption || article.title} width="1200" height="675" fetchPriority="high" decoding="async" className="w-full h-full object-cover grayscale" />
-           </div>
-           {sourceImage !== "/news-placeholder.svg" && (article.imageSource || article.imageCredit) && (
-               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-2 text-right">
-                   Image: {article.imageCredit && <span className="font-bold">{article.imageCredit} </span>}
-                   {article.imageSource && <span>({article.imageSource})</span>}
-                   {article.imageLicense && <span> · {article.imageLicense}</span>}
-               </div>
-           )}
-       </div>
+       <NewsPhoto article={article} priority />
 
        {/* Byline */}
        <div className="flex items-center justify-between py-6 border-y border-border mt-8">
           <div className="flex flex-col">
              <span className="font-medium text-sm">{originalUrl ? <>Source: <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline decoration-primary underline-offset-4">{article.sourceName}</a></> : `Published by ${article.sourceName || "The Atlas Times"}`}</span>
+             {article.sourceAuthor && <span className="text-sm mt-1">Original reporting by {article.sourceAuthor} · {article.sourceName}</span>}
+             {article.textLicense && <span className="text-xs mt-1">Adapted source excerpt · {article.textLicense} {article.textLicenseUrl && <a href={article.textLicenseUrl} className="underline" target="_blank" rel="noopener noreferrer">Terms and license</a>}</span>}
              {article.authorName && <span className="text-sm mt-1">By {article.authorName}</span>}
              <span className="text-xs text-muted-foreground mt-1">Published: <time dateTime={article.publishedAt}>{newsDate(article.publishedAt, "MMMM d, yyyy 'at' h:mm a")}</time></span>
              {article.modifiedAt && article.modifiedAt !== article.publishedAt && <span className="text-xs text-muted-foreground mt-1">Updated: <time dateTime={article.modifiedAt}>{newsDate(article.modifiedAt, "MMMM d, yyyy 'at' h:mm a")}</time></span>}
              {article.sourcePublishedAt && <span className="text-xs text-muted-foreground mt-1">Source published: <time dateTime={article.sourcePublishedAt}>{newsDate(article.sourcePublishedAt, "MMMM d, yyyy 'at' h:mm a")}</time></span>}
-             {article.aiGenerated && <span className="text-xs text-muted-foreground mt-1">AI-assisted summary · <Link to="/editorial-policy" className="underline">Sources and review policy</Link></span>}
+             {article.aiGenerated && <span className="text-xs text-muted-foreground mt-1">AI-assisted summary · {article.publicationMode === "automatic" ? "Published after automated checks; no human review" : "Editor reviewed"} · <Link to="/editorial-policy" className="underline">Sources and review policy</Link></span>}
           </div>
           <div className="flex space-x-4 items-center">
              <Badge variant="outline" className="text-xs uppercase scale-90 hidden sm:inline-flex print:hidden">Analysis</Badge>
@@ -189,9 +181,9 @@ export default function ArticleView() {
        </section>}
 
        {/* Full Article Content */}
-       <div className="article-content py-8 border-y border-border [&>p]:mb-6 [&>p]:font-serif [&>p]:text-xl [&>p]:leading-relaxed [&>p]:text-foreground/90 [&>h1]:text-4xl [&>h1]:font-bold [&>h1]:mt-10 [&>h1]:mb-4 [&>h1]:font-serif [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-10 [&>h2]:mb-4 [&>h2]:font-serif [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-6 [&>h3]:mb-4 [&>h3]:font-serif [&>ul]:list-disc [&>ul]:pl-6 [&>ul]:mb-6 [&>ul>li]:mb-2 [&>ol]:list-decimal [&>ol]:pl-6 [&>ol]:mb-6 [&>ol>li]:mb-2 [&_strong]:font-black"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.fullContent || "<p>Full content unavailable in feed.</p>") }}
-       />
+       {article.fullContent && <div className="article-content py-8 border-y border-border [&>p]:mb-6 [&>p]:font-serif [&>p]:text-xl [&>p]:leading-relaxed [&>p]:text-foreground/90 [&>h1]:text-4xl [&>h1]:font-bold [&>h1]:mt-10 [&>h1]:mb-4 [&>h1]:font-serif [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:mt-10 [&>h2]:mb-4 [&>h2]:font-serif [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:mt-6 [&>h3]:mb-4 [&>h3]:font-serif [&>ul]:list-disc [&>ul]:pl-6 [&>ul]:mb-6 [&>ul>li]:mb-2 [&>ol]:list-decimal [&>ol]:pl-6 [&>ol]:mb-6 [&>ol>li]:mb-2 [&_strong]:font-black"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.fullContent) }}
+       />}
 
        {/* Context & Outbound */}
        {originalUrl && (

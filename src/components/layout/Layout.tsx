@@ -9,7 +9,7 @@ export default function Layout() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [latestNews, setLatestNews] = useState<Article[]>([]);
-  const categories = ["World", "Business", "Economy", "Finance", "Politics", "Technology", "AI"];
+  const categories = ["World", "Politics", "Business", "Technology", "Science", "Climate", "Health", "Sports", "Culture"];
 
   useEffect(() => {
     const controller = new AbortController();

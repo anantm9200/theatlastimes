@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from "react-router-dom";
 import SeoHead, { browserSiteOrigin } from "../lib/SeoHead";
 import { articlePath, collectionStructuredData } from "../lib/seo";
 import { newsAge, newsImage, readNews } from "../lib/newsApi";
+import NewsPhoto from "../components/NewsPhoto";
 import { Article } from "../types";
 
 export default function Feed() {
@@ -53,13 +54,11 @@ export default function Feed() {
             
             {/* Top Category Story */}
             {heroArticle && (
-                <Link to={articlePath(heroArticle)} className="group grid grid-cols-1 md:grid-cols-2 gap-8 items-center border-b border-border pb-12">
-                    <div className="w-full aspect-[4/3] overflow-hidden border border-border">
-                        <img src={heroImage} alt="" width="800" height="600" fetchPriority="high" decoding="async" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 hover:scale-105" />
-                    </div>
+                <div className="group grid grid-cols-1 md:grid-cols-2 gap-8 items-center border-b border-border pb-12">
+                    <NewsPhoto article={heroArticle} priority />
                     <div className="flex flex-col justify-center">
                         <span className="text-[10px] text-primary uppercase font-bold tracking-wider mb-4 border border-primary px-2 py-1 w-fit">{heroArticle.region}</span>
-                        <h2 className="font-serif font-black text-4xl mb-6 leading-tight group-hover:text-primary transition-colors">{heroArticle.title}</h2>
+                        <h2 className="font-serif font-black text-4xl mb-6 leading-tight group-hover:text-primary transition-colors"><Link to={articlePath(heroArticle)}>{heroArticle.title}</Link></h2>
                         <p className="text-lg font-serif text-muted-foreground leading-relaxed mb-6 border-l-4 border-primary pl-4">{heroArticle.aiSummary}</p>
                         <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                             <span>{heroArticle.sourceName}</span>
@@ -67,7 +66,7 @@ export default function Feed() {
                             <span>{newsAge(heroArticle.publishedAt)}</span>
                         </div>
                     </div>
-                </Link>
+                </div>
             )}
 
             {/* Denser Lower Grid */}

@@ -7,13 +7,14 @@ import { editorialRequest } from "../lib/editorialApi";
 import { articlePath } from "../lib/seo";
 import type { QueuedAnalysis } from "./AnalysisJobStatus";
 
-const categories = ["World", "Business", "Economy", "Finance", "Politics", "Technology", "AI", "Geopolitics", "Tech Policy", "Security", "Climate", "Environment", "Science", "Sports"];
+const categories = ["World", "Politics", "Business", "Technology", "Science", "Climate", "Health", "Sports", "Culture"];
 const regions = ["Global", "North America", "Europe", "Asia", "Middle East", "Africa", "Latin America"];
 const control = "block w-full border border-border bg-background p-3 mt-2 focus:border-foreground";
 
 type Action = "draft" | "published" | "archived" | "analyze";
 export default function ArticleForm({ initial, onSaved }: { initial?: Article; onSaved: (article: Article, message: string, job?: QueuedAnalysis) => void }) {
   const [fields, setFields] = useState({ title: initial?.title || "", summary: initial?.aiSummary || "", sourceName: initial?.sourceName || "The Atlas Times", originalUrl: initial?.originalUrl || "", authorName: initial?.authorName || "", category: initial?.category || "World", region: initial?.region || "Global", language: initial?.language || "en", imageUrl: initial?.imageUrl || "", imageCredit: initial?.imageCredit || "", imageLicense: initial?.imageLicense || "", imageCaption: initial?.imageCaption || "", sourcePublishedAt: initial?.sourcePublishedAt || "", tags: (initial?.tags || []).join(", "), reviewNote: "", keyPoints: (initial?.keyPoints || []).join("\n"), whyItMatters: initial?.whyItMatters || "", detailedHumanizedSummary: initial?.detailedHumanizedSummary || "" });
+  const [globalCoverage, setGlobalCoverage] = useState(initial?.coverage === "global");
   const [aiGenerated, setAiGenerated] = useState(initial?.aiGenerated || false);
   const [body, setBody] = useState(initial?.fullContent || "");
   const [busy, setBusy] = useState(false);
@@ -31,13 +32,14 @@ export default function ArticleForm({ initial, onSaved }: { initial?: Article; o
     const action = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value as Action || "draft";
     setError("");
     if (action === "published") {
+      if (!globalCoverage) { setError("Only globally relevant news can be published. Confirm global relevance."); return; }
       if (!fields.authorName.trim() || fields.reviewNote.trim().length < 10) { setError("Publishing requires an author and a new review note of at least 10 characters."); return; }
       if (!fields.summary.trim() || !body.replace(/<[^>]+>/g, "").trim()) { setError("Add a summary and report body before publishing."); return; }
       if (fields.imageUrl && (!fields.imageCredit.trim() || !fields.imageLicense.trim())) { setError("Add the image credit and license or remove the image before publishing."); return; }
     }
     setBusy(true);
     try {
-      const payload = { ...fields, expectedModifiedAt: initial?.modifiedAt, fullContent: body, summary: fields.summary, sourcePublishedAt: fields.sourcePublishedAt.trim() || undefined, tags: fields.tags.split(",").map(tag => tag.trim()).filter(Boolean), keyPoints: fields.keyPoints.split("\n").map(point => point.trim()).filter(Boolean), aiGenerated, status: action === "analyze" ? "draft" : action };
+      const payload = { ...fields, coverage: globalCoverage ? "global" : "unknown", publicationMode: "human", expectedModifiedAt: initial?.modifiedAt, fullContent: body, summary: fields.summary, sourcePublishedAt: fields.sourcePublishedAt.trim() || undefined, tags: fields.tags.split(",").map(tag => tag.trim()).filter(Boolean), keyPoints: fields.keyPoints.split("\n").map(point => point.trim()).filter(Boolean), aiGenerated, status: action === "analyze" ? "draft" : action };
       const saved = await editorialRequest<{ data: Article }>(initial ? `/api/news/${encodeURIComponent(initial.id)}` : "/api/news", { method: initial ? "PUT" : "POST", body: JSON.stringify(payload) });
       if (action === "analyze") {
         try {
@@ -69,6 +71,7 @@ export default function ArticleForm({ initial, onSaved }: { initial?: Article; o
         <label className="block text-sm font-bold">Region<select value={fields.region} onChange={event => update("region", event.target.value)} className={control}>{[...new Set([...regions, fields.region])].map(value => <option key={value}>{value}</option>)}</select></label>
         {field("language", "Language code", { max: 20, required: true })}
       </div>
+      <label className="flex gap-3"><input type="checkbox" checked={globalCoverage} onChange={event => setGlobalCoverage(event.target.checked)} />This report has international or global significance.</label>
       {field("tags", "Tags (separate with commas)")}
       <label className="block text-sm font-bold">Summary<textarea className={control} maxLength={5000} rows={4} value={fields.summary} onChange={event => update("summary", event.target.value)} /></label>
       <label className="flex items-start gap-3"><input type="checkbox" checked={aiGenerated} onChange={event => setAiGenerated(event.target.checked)} className="mt-1" />This report includes AI-assisted text.</label>

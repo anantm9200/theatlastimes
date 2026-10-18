@@ -42,7 +42,7 @@ test("MongoDB HTTP workflow keeps drafts private and queues DGX analysis before 
     assert.equal(queued.data.job.status, "queued");
     assert.equal((await jobs.get(queued.data.job.id))?.articleId, article.id);
     assert.equal((await request(`/api/news/${article.id}`, "PUT", { status: "published" }, ingest)).status, 403);
-    const published = await request(`/api/news/${article.id}`, "PUT", { status: "published", authorName: "Isolated integration editor", reviewNote: "Reviewed test-only facts, attribution, and rights." }, editor);
+    const published = await request(`/api/news/${article.id}`, "PUT", { status: "published", coverage: "global", authorName: "Isolated integration editor", reviewNote: "Reviewed test-only facts, attribution, and rights." }, editor);
     assert.equal(published.status, 200);
     assert.equal((await request(`/api/news/${article.id}`)).status, 200);
     assert.equal((await request("/api/news")).data.data.length, 1);
@@ -81,7 +81,7 @@ test("MongoDB replica-set store: privacy, durable identity, transactions, CAS, a
   });
 
   await t.test("publication, filtering, aliases, and archived states retain identity", async () => {
-    const published = await store.save(validateArticle({ status: "published", authorName: "Test editor", reviewedAt: new Date().toISOString(), reviewNote: "Checked fixture facts and attribution." }, draft), "editor", draft.modifiedAt);
+    const published = await store.save(validateArticle({ status: "published", coverage: "global", authorName: "Test editor", reviewedAt: new Date().toISOString(), reviewNote: "Checked fixture facts and attribution." }, draft), "editor", draft.modifiedAt);
     assert.ok(published.publishedAt);
     assert.equal((await store.get(draft.slug))?.id, draft.id);
     await store.addAlias("old-news-identifier", draft.id);

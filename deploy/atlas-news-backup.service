@@ -1,0 +1,8 @@
+[Unit]
+Description=Atlas Times local MongoDB backup
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/theatlastimes-app
+ExecStart=/usr/bin/bash %h/theatlastimes-app/deploy/backup-mongo.sh
+UMask=0077

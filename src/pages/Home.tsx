@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Article } from "../types";
 import SeoHead, { browserSiteOrigin } from "../lib/SeoHead";
+import NewsPhoto from "../components/NewsPhoto";
 import { articlePath, collectionStructuredData, DEFAULT_DESCRIPTION } from "../lib/seo";
 import { newsAge, newsDate, newsImage, readNews } from "../lib/newsApi";
 
 const sections = [
   { title: "World & Politics", path: "/category/world", categories: ["World", "Geopolitics", "Global", "Politics"] },
   { title: "Technology & AI", path: "/category/technology", categories: ["Technology", "AI", "Tech Policy", "Security"] },
-  { title: "Economy & Business", path: "/category/economy", categories: ["Economy", "Business", "Trade", "Finance", "Markets"] },
+  { title: "Economy & Business", path: "/category/business", categories: ["Economy", "Business", "Trade", "Finance", "Markets"] },
   { title: "Climate & Science", path: "/category/climate", categories: ["Climate", "Environment", "Science"] },
 ];
 
@@ -53,16 +54,13 @@ export default function Home() {
     {loading ? <p role="status" className="py-20 text-center font-serif text-xl animate-pulse">Loading news…</p> : error ? <p role="alert" className="py-20 text-center">{error}</p> : !hero ? <section className="py-20 text-center"><h2 className="text-3xl font-serif mb-4">Reports are on their way</h2><p>No reports have been published yet.</p></section> : <>
       <div className={`grid grid-cols-1 ${latest.length ? "lg:grid-cols-3" : ""} gap-10 py-8 mb-12`}>
         <article className={latest.length ? "lg:col-span-2 lg:border-r lg:border-border lg:pr-10" : "max-w-5xl mx-auto w-full"}>
+          <NewsPhoto article={hero} priority />
           <Link to={articlePath(hero)} className="group block">
-            <div className="aspect-[16/9] overflow-hidden border border-border mb-5">
-              <img src={newsImage(hero)} alt="" width="1200" height="675" fetchPriority="high" decoding="async" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
-            </div>
             <p className="text-primary text-xs uppercase font-bold tracking-widest mb-3">{hero.category}</p>
             <h2 className="font-serif font-black text-3xl md:text-5xl leading-tight mb-4 group-hover:text-primary">{hero.title}</h2>
             <p className="font-serif text-lg text-muted-foreground leading-relaxed mb-5">{hero.aiSummary || hero.snippet}</p>
           </Link>
           <p className="text-xs text-muted-foreground">{hero.sourceName} · <time dateTime={hero.publishedAt}>{newsDate(hero.publishedAt)}</time></p>
-          {hero.imageCredit && newsImage(hero) !== "/news-placeholder.svg" && <p className="text-[10px] text-muted-foreground mt-2">Image: {hero.imageCredit}</p>}
         </article>
         {latest.length > 0 && <section aria-labelledby="latest-heading" className="space-y-6">
           <h2 id="latest-heading" className="font-old-english text-3xl font-bold">Latest reports</h2>

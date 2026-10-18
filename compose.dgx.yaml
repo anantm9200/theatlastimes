@@ -1,0 +1,68 @@
+name: atlas-times-dgx
+services:
+  mongo-keygen:
+    image: mongo:8.2
+    network_mode: none
+    entrypoint: ["bash", "-ec", "umask 077; if ! test -s /keys/key; then openssl rand -base64 756 > /keys/key; fi; chown 999:999 /keys/key; chmod 400 /keys/key"]
+    volumes: ["mongo-key:/keys"]
+    restart: "no"
+  mongo:
+    image: mongo:8.2
+    command: ["mongod", "--port", "27019", "--bind_ip", "127.0.0.1", "--replSet", "atlasLocal", "--auth", "--keyFile", "/keys/key", "--wiredTigerCacheSizeGB", "0.25"]
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?Set MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD}
+      MONGO_APP_USER: ${MONGO_APP_USER:?Set MONGO_APP_USER}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?Set MONGO_APP_PASSWORD}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-the_atlas_times}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-key:/keys:ro
+      - ./deploy/bootstrap-mongo.js:/bootstrap-mongo.js:ro
+    depends_on:
+      mongo-keygen: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--port", "27019", "--eval", "quit(db.hello().isWritablePrimary ? 0 : 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    security_opt: ["no-new-privileges:true"]
+  web:
+    image: ${ATLAS_IMAGE:-atlas-times-dgx:local}
+    build: .
+    network_mode: host
+    env_file: .env.app
+    environment: { NODE_ENV: production, HOST: "127.0.0.1", PORT: "3011", AI_EXECUTION: worker }
+    restart: unless-stopped
+    init: true
+    mem_limit: 1g
+    cpus: 1
+    depends_on:
+      mongo: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    stop_grace_period: 120s
+  worker:
+    image: ${ATLAS_IMAGE:-atlas-times-dgx:local}
+    build: .
+    command: ["node", "dist/dgx-worker.mjs"]
+    network_mode: host
+    env_file: .env.app
+    environment: { NODE_ENV: production }
+    restart: unless-stopped
+    init: true
+    mem_limit: 1g
+    cpus: 1
+    depends_on:
+      mongo: { condition: service_healthy }
+    healthcheck: { disable: true }
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    stop_grace_period: 240s
+volumes:
+  mongo-data:
+  mongo-key:
