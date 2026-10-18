@@ -4,6 +4,8 @@ Global news across World, Politics, Business, Technology, Science, Climate, Heal
 
 ## Deployment
 
+Live: [www.theatlastimes.com](https://www.theatlastimes.com). The DGX-backed production release and its authenticated editorial flows were verified on 18 October 2026.
+
 **Vercel → authenticated HTTPS gateway → DGX Docker application → private local MongoDB replica set.** The DGX also runs the daily collector, queued model analysis, publication checks and image selection against its existing local model. MongoDB is bound to loopback and never exposed to Vercel or the internet. Vercel serves static assets and forwards dynamic requests to the DGX.
 
 Use [DGX setup and operations](docs/DGX.md), [Vercel connection](docs/VERCEL.md), and [source/image permissions](docs/SOURCES.md). The [original audit](docs/AUDIT.md) records the earlier implementation and its historical Atlas preview; the current architecture supersedes that deployment.
