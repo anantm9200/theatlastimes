@@ -1,97 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Article } from '../types';
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import type { Article } from "../types";
+import EditorialGate from "../components/EditorialGate";
+import { editorialRequest } from "../lib/editorialApi";
 
-export default function DeleteArticle() {
-  const { id } = useParams<{ id: string }>();
-  const [article, setArticle] = useState<Article | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
-  
+function DeleteReport() {
+  const { id } = useParams();
   const navigate = useNavigate();
-
+  const [article, setArticle] = useState<Article | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
-    if (!id) return;
-    
-    const fetchArticle = async () => {
-      try {
-        const res = await fetch(`/api/news/${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setArticle(data.data);
-        } else {
-          alert('Article not found');
-          navigate('/');
-        }
-      } catch (err) {
-        console.error('Error fetching article:', err);
-        alert('Error fetching article');
-        navigate('/');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchArticle();
-  }, [id, navigate]);
-
-  const handleDelete = async () => {
-    if (!id) return;
-    setIsDeleting(true);
-    try {
-      const res = await fetch(`/api/news/${id}`, {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        navigate('/');
-      } else {
-        const errData = await res.text();
-        console.error('Failed to delete article:', errData);
-        alert('Failed to delete article: ' + errData);
-      }
-    } catch (err) {
-      console.error('Error deleting article:', err);
-      alert('Error deleting article');
-    } finally {
-      setIsDeleting(false);
-    }
+    const controller = new AbortController();
+    editorialRequest<{ data: Article }>(`/api/admin/news/${encodeURIComponent(id || "")}`, { signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) setArticle(result.data); })
+      .catch(err => { if (!controller.signal.aborted) setError(err.message); });
+    return () => controller.abort();
+  }, [id]);
+  const remove = async () => {
+    setBusy(true); setError("");
+    try { await editorialRequest(`/api/news/${encodeURIComponent(id || "")}`, { method: "DELETE" }); navigate("/editorial", { state: { message: "Report deleted." } }); }
+    catch (err) { setError(err instanceof Error ? err.message : "Unable to delete report."); setBusy(false); }
   };
-
-  if (loading) {
-    return <div className="py-20 text-center font-serif text-xl animate-pulse">Loading article...</div>;
-  }
-
-  if (!article) {
-    return null;
-  }
-
-  return (
-    <div className="max-w-2xl mx-auto py-20 px-4">
-      <div className="border border-border p-8 bg-card">
-        <h1 className="text-3xl font-old-english font-bold text-foreground mb-4">Delete Article</h1>
-        <p className="text-muted-foreground mb-8">
-          Are you sure you want to delete this article? This action cannot be undone.
-        </p>
-        <div className="bg-muted p-4 mb-8 border border-border">
-          <h2 className="font-serif text-xl font-bold mb-2">{article.title}</h2>
-          <p className="text-sm text-muted-foreground">{article.aiSummary}</p>
-        </div>
-        <div className="flex justify-end gap-4">
-          <button
-            onClick={() => navigate(`/article/${id}`)}
-            className="bg-muted text-foreground px-6 py-2 text-sm font-bold uppercase tracking-widest hover:bg-muted/80 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="bg-red-600 text-white px-6 py-2 text-sm font-bold uppercase tracking-widest hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            {isDeleting ? 'Deleting...' : 'Delete Article'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="max-w-2xl mx-auto py-14 px-4 space-y-6">
+    <h1 className="font-serif text-4xl font-bold">Delete report</h1>
+    {error && <p role="alert">{error}</p>}
+    {!article ? !error && <p role="status">Loading report…</p> : <>
+      <h2 className="font-serif text-2xl font-bold">{article.title}</h2>
+      <p>Deletion removes this report and cannot be undone. You can archive a report from the edit page to keep a private copy.</p>
+      <div className="flex gap-5"><Link to={`/article/${encodeURIComponent(article.id)}/edit`} className="border px-5 py-3">Cancel</Link><button disabled={busy} onClick={remove} className="bg-red-700 text-white px-5 py-3 font-bold disabled:opacity-50">{busy ? "Deleting…" : "Delete report"}</button></div>
+    </>}
+  </div>;
 }
+export default function DeleteArticle() { return <EditorialGate><DeleteReport /></EditorialGate>; }

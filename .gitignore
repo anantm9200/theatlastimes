@@ -22,4 +22,13 @@ inspect-db.ts
 # Databases
 sqlite.db
 *.db
+*.db-shm
+*.db-wal
+data/
+backups/
+playwright-report/
+test-results/
+graphify-out/
 drizzle.config.ts
+.vercel/
+artifacts/

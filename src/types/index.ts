@@ -35,6 +35,20 @@ export interface Article {
   importanceScore: number;
   relevanceScore: number;
   credibilityScore: number;
+  status?: "draft" | "published" | "archived";
+  modifiedAt?: string;
+  sourcePublishedAt?: string;
+  authorName?: string;
+  aiGenerated?: boolean;
+  reviewedAt?: string;
+  reviewNote?: string;
+  generatedBy?: string;
+  provenance?: {
+    sourceUrls: string[];
+    retrievedAt?: string;
+    model?: string;
+    promptVersion?: string;
+  };
 }
 
 export interface UserPreference {

@@ -6,8 +6,9 @@ service cloud.firestore {
     }
     
     match /articles/{articleId} {
-      allow read: if true;
-      allow write: if true; 
+      // News is served by the authenticated application API and its durable store.
+      // Client SDKs must never bypass the editorial publication workflow.
+      allow read, write: if false;
     }
 
     match /users/{userId} {

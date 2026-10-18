@@ -1,99 +1,39 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/useAuth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import SeoHead from "../lib/SeoHead";
+
+const regions = ["Global", "North America", "Europe", "Asia", "Middle East", "Africa", "Latin America"];
+const categories = ["World", "Business", "Technology", "AI", "Geopolitics", "Economy", "Finance", "Politics", "Climate", "Science"];
+function loadPreferences() {
+  try {
+    const value = JSON.parse(localStorage.getItem("atlas-reader-preferences") || "{}");
+    return { regions: Array.isArray(value.regions) ? value.regions.filter((item: unknown) => typeof item === "string" && regions.includes(item)) : ["Global"], categories: Array.isArray(value.categories) ? value.categories.filter((item: unknown) => typeof item === "string" && categories.includes(item)) : [] };
+  } catch { return { regions: ["Global"], categories: [] }; }
+}
 
 export default function Preferences() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [selectedRegions, setSelectedRegions] = useState<string[]>(["Global", "USA", "Europe"]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(["Business", "Technology"]);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    async function loadPreferences() {
-      if (user) {
-         try {
-           const ref = doc(db, 'users', user.uid);
-           const snap = await getDoc(ref);
-           if (snap.exists() && snap.data().preferences) {
-              const prefs = snap.data().preferences;
-              if (prefs.regions) setSelectedRegions(prefs.regions);
-              if (prefs.categories) setSelectedCategories(prefs.categories);
-           }
-         } catch(e) {}
-      }
-    }
-    loadPreferences();
-  }, [user]);
-
-  const regions = ["Global", "APAC", "EMEA", "Americas", "Middle East", "Africa", "USA", "Europe"];
-  const categories = ["Business", "Technology", "Geopolitics", "Economy", "Markets", "Policy", "Science"];
-
-  const toggleItem = (list: string[], setList: (v: string[]) => void, item: string) => {
-      if (list.includes(item)) setList(list.filter(i => i !== item));
-      else setList([...list, item]);
+  const [selected, setSelected] = useState(loadPreferences);
+  const [message, setMessage] = useState("");
+  const toggle = (group: "regions" | "categories", item: string) => {
+    setSelected(current => ({ ...current, [group]: current[group].includes(item) ? current[group].filter((value: string) => value !== item) : [...current[group], item] }));
+    setMessage("");
   };
-
-  const handleSave = async () => {
-      if (!user) {
-          navigate("/");
-          return;
-      }
-      setSaving(true);
-      try {
-         await setDoc(doc(db, 'users', user.uid), {
-             preferences: {
-                 regions: selectedRegions,
-                 categories: selectedCategories
-             }
-         }, { merge: true });
-      } catch (e) {}
-      navigate("/");
-  };
-
-  return (
-    <div className="max-w-3xl mx-auto py-16 px-4">
-        <div className="border-b-4 border-foreground pb-4 mb-12 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <h1 className="text-4xl md:text-5xl font-serif font-black uppercase tracking-widest text-foreground">Edition Settings</h1>
-        </div>
-
-        <div className="mb-12">
-            <h2 className="text-lg font-bold uppercase tracking-widest border-b border-border pb-4 mb-6">Regional Focus</h2>
-            <div className="flex flex-wrap gap-4">
-                {regions.map(r => (
-                    <button 
-                       key={r} 
-                       onClick={() => toggleItem(selectedRegions, setSelectedRegions, r)}
-                       className={`px-6 py-2 border font-bold uppercase text-xs tracking-widest transition-colors ${selectedRegions.includes(r) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted border-border text-foreground/80'}`}
-                    >
-                        {r}
-                    </button>
-                ))}
-            </div>
-        </div>
-
-        <div className="mb-12">
-            <h2 className="text-lg font-bold uppercase tracking-widest border-b border-border pb-4 mb-6">Subject Interests</h2>
-            <div className="flex flex-wrap gap-4">
-                {categories.map(c => (
-                    <button 
-                       key={c} 
-                       onClick={() => toggleItem(selectedCategories, setSelectedCategories, c)}
-                       className={`px-6 py-2 border font-bold uppercase text-xs tracking-widest transition-colors ${selectedCategories.includes(c) ? 'bg-foreground text-background border-foreground' : 'bg-background hover:bg-muted border-border text-foreground/80'}`}
-                    >
-                        {c}
-                    </button>
-                ))}
-            </div>
-        </div>
-
-        <div className="mt-16 border-t border-border pt-8 flex justify-end items-center">
-            <button onClick={handleSave} disabled={saving} className="inline-block bg-primary text-primary-foreground px-10 py-4 font-bold uppercase tracking-widest text-sm hover:opacity-90 transition-opacity shadow-sm">
-                {saving ? "Saving..." : "Save Preferences"}
-            </button>
-        </div>
-    </div>
-  )
+  return <div className="max-w-3xl mx-auto py-12 px-4 space-y-8">
+    <SeoHead title="Reader preferences" noindex />
+    <h1 className="text-4xl font-serif font-bold">Reader preferences</h1>
+    <p className="text-muted-foreground">Save your interests in this browser and use the links below to browse them. Your preferences and saved reports stay on this device.</p>
+    {(["regions", "categories"] as const).map(group => <fieldset key={group} className="space-y-4">
+      <legend className="text-xl font-serif font-bold mb-4">{group === "regions" ? "Regions" : "Subjects"}</legend>
+      <div className="flex flex-wrap gap-3">{(group === "regions" ? regions : categories).map(item => <button key={item} type="button" aria-pressed={selected[group].includes(item)} onClick={() => toggle(group, item)} className={`border px-4 py-2 ${selected[group].includes(item) ? "bg-foreground text-background" : "bg-background"}`}>{item}</button>)}</div>
+    </fieldset>)}
+    <button className="bg-primary text-primary-foreground px-6 py-3 font-bold" onClick={() => {
+      try { localStorage.setItem("atlas-reader-preferences", JSON.stringify(selected)); setMessage("Preferences saved on this device."); }
+      catch { setMessage("This browser could not save your preferences. Allow site storage and try again."); }
+    }}>Save preferences</button>
+    <p role="status">{message}</p>
+    {(selected.categories.length > 0 || selected.regions.length > 0) && <nav aria-label="Your selected sections" className="border-t border-border pt-6 flex flex-wrap gap-5">
+      {selected.categories.map((item: string) => <Link key={item} className="underline" to={`/category/${encodeURIComponent(item.toLowerCase())}`}>{item}</Link>)}
+      {selected.regions.map((item: string) => <Link key={item} className="underline" to={`/region/${encodeURIComponent(item.toLowerCase().replace(/ /g, "-"))}`}>{item}</Link>)}
+    </nav>}
+  </div>;
 }

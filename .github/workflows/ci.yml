@@ -1,0 +1,71 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check types
+        run: npm run lint
+      - name: Start isolated MongoDB replica set
+        run: |
+          docker run --detach --name atlas-mongo-test --publish 127.0.0.1:27017:27017 mongo:8.2 --replSet atlasTest --bind_ip_all
+          mongo_ready=0
+          for mongo_attempt in {1..40}; do
+            if docker exec atlas-mongo-test mongosh --quiet --eval 'quit(db.adminCommand({ping: 1}).ok === 1 ? 0 : 1)' >/dev/null 2>&1; then
+              mongo_ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$mongo_ready" = 1
+          docker exec atlas-mongo-test mongosh --quiet --eval 'rs.initiate({_id: "atlasTest", members: [{_id: 0, host: "127.0.0.1:27017"}]})'
+          mongo_ready=0
+          for mongo_attempt in {1..40}; do
+            if docker exec atlas-mongo-test mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' >/dev/null 2>&1; then
+              mongo_ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$mongo_ready" = 1
+      - name: Test publishing and ingestion boundaries
+        run: npm test
+        env:
+          MONGODB_TEST_URI: mongodb://127.0.0.1:27017/?replicaSet=atlasTest&directConnection=true
+      - name: Build production assets
+        run: npm run build
+      - name: Check production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: MongoDB diagnostics on failure
+        if: failure()
+        run: |
+          if docker container inspect atlas-mongo-test >/dev/null 2>&1; then
+            docker logs --tail 100 atlas-mongo-test
+          fi
+      - name: Remove isolated test database
+        if: always()
+        run: |
+          if docker container inspect atlas-mongo-test >/dev/null 2>&1; then
+            docker rm --force atlas-mongo-test
+          fi

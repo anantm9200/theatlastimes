@@ -1,0 +1,51 @@
+services:
+  news:
+    image: ${ATLAS_IMAGE:-the-atlas-times:local}
+    build: .
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      NEWS_DB_PATH: /app/data/news.db
+      ENABLE_INGESTION: ${ENABLE_INGESTION:-false}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3000}:3000"
+    volumes:
+      - news-data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+
+  dgx-worker:
+    image: ${ATLAS_IMAGE:-the-atlas-times:local}
+    build: .
+    profiles:
+      - dgx
+    command: ["node", "dist/dgx-worker.mjs"]
+    # DGX Linux: reach the existing inference service on host loopback.
+    network_mode: host
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    # The worker consumes durable MongoDB jobs and does not run the web API.
+    healthcheck:
+      disable: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+
+volumes:
+  news-data:

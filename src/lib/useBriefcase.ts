@@ -1,60 +1,39 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "./useAuth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { useSyncExternalStore } from "react";
+
+const key = "briefcase";
+const event = "atlas-briefcase-change";
+let cached: string[] = [];
+let lastRaw: string | null | undefined;
+let memoryOnly = false;
+
+function snapshot(): string[] {
+  if (typeof window === "undefined" || memoryOnly) return cached;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw !== lastRaw) {
+      lastRaw = raw;
+      const value = JSON.parse(raw || "[]");
+      cached = Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length < 200))].slice(0, 1000) : [];
+    }
+  } catch { memoryOnly = true; }
+  return cached;
+}
+function subscribe(listener: () => void) {
+  window.addEventListener("storage", listener);
+  window.addEventListener(event, listener);
+  return () => { window.removeEventListener("storage", listener); window.removeEventListener(event, listener); };
+}
+function update(ids: string[]) {
+  cached = ids;
+  try { lastRaw = JSON.stringify(ids); localStorage.setItem(key, lastRaw); }
+  catch { memoryOnly = true; }
+  window.dispatchEvent(new Event(event));
+}
+const serverSnapshot: string[] = [];
 
 export function useBriefcase() {
-  const [savedIds, setSavedIds] = useState<string[]>([]);
-  const { user } = useAuth();
-  
-  useEffect(() => {
-    async function sync() {
-      if (user) {
-        // sync from firestore
-        try {
-          const docRef = doc(db, "briefcases", user.uid);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-             const fbSaved = snap.data().savedIds || [];
-             setSavedIds(fbSaved);
-             localStorage.setItem("briefcase", JSON.stringify(fbSaved));
-          } else {
-             // upload local
-             const local = JSON.parse(localStorage.getItem("briefcase") || "[]");
-             setSavedIds(local);
-             await setDoc(docRef, { savedIds: local }, { merge: true });
-          }
-        } catch(e) { }
-      } else {
-        try {
-           const saved = JSON.parse(localStorage.getItem("briefcase") || "[]");
-           setSavedIds(saved);
-        } catch(e) {}
-      }
-    }
-    sync();
-  }, [user]);
-
-  const saveArticle = (id: string) => {
-    if (savedIds.includes(id)) return;
-    const updated = [...savedIds, id];
-    setSavedIds(updated);
-    localStorage.setItem("briefcase", JSON.stringify(updated));
-    if (user) {
-       setDoc(doc(db, "briefcases", user.uid), { savedIds: updated }, { merge: true }).catch(console.error);
-    }
-  };
-
-  const removeArticle = (id: string) => {
-    const updated = savedIds.filter(i => i !== id);
-    setSavedIds(updated);
-    localStorage.setItem("briefcase", JSON.stringify(updated));
-    if (user) {
-       setDoc(doc(db, "briefcases", user.uid), { savedIds: updated }, { merge: true }).catch(console.error);
-    }
-  };
-  
-  const isSaved = (id: string) => savedIds.includes(id);
-
-  return { savedIds, saveArticle, removeArticle, isSaved };
+  const savedIds = useSyncExternalStore(subscribe, snapshot, () => serverSnapshot);
+  const saveArticle = (id: string) => { const current = snapshot(); if (!current.includes(id)) update([...current, id]); };
+  const removeArticle = (id: string) => update(snapshot().filter(value => value !== id));
+  return { savedIds, saveArticle, removeArticle, isSaved: (id: string) => savedIds.includes(id) };
 }
