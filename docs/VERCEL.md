@@ -31,3 +31,5 @@ Run/database backups and inference job state live on the DGX. Large full databas
 ## Build on the DGX
 
 Run `npm run build && npm run package:vercel` on the DGX. The packager writes a Vercel Build Output API artifact containing static assets and a small Node HTTPS relay with no database/model dependencies or unused Node helper injection. Transfer that artifact to the linked deployment checkout and use `vercel deploy --prebuilt`. Supply the private gateway configuration through environment variables, using `--env DGX_GATEWAY_KEY --env DGX_ORIGIN` to avoid secret values in process arguments. The tested CLI release used `VERCEL_CLI_USE_NATIVE_BINARY=0` after its native uploader stalled. No local or Vercel recompilation is needed for this release workflow. See [Vercel Build Output API](https://vercel.com/docs/build-output-api).
+
+Automatic Git-triggered Vercel deployments are disabled in `vercel.json`, so a source push cannot replace the DGX-built release with a cloud build or omit its gateway configuration. GitHub validation still runs. Code releases use the explicit DGX build and prebuilt deployment workflow; daily news updates require no new site deployment.
