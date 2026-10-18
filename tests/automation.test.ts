@@ -34,6 +34,7 @@ test("automatic publication holds stale, local, unlicensed and unsupported draft
   assert.equal(publicationHold(draft, analysis, publisher, { ...check, evidence: [excerpt.replaceAll(" ", "  ")] }), undefined);
   assert.match(publicationHold({ ...draft, fullContent: `<p>${excerpt} […]</p>` }, analysis, publisher, check)!, /incomplete/);
   assert.match(publicationHold({ ...draft, title: "APOD: Today's picture" }, analysis, publisher, check)!, /photo feature/);
+  assert.match(publicationHold(draft, analysis, publisher, { ...check, reason: "The context is a reasonable inference, though slightly extrapolated." })!, /inferred or unsupported/);
 });
 test("free photos take priority and publisher photos require permission, a host match and the real credit", async () => {
   const draft = { ...article(), publisherImageUrl: "https://photos.example/original.jpg", publisherImageCredit: "Photographer / Agency" };
