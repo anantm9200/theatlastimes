@@ -206,3 +206,7 @@ Keep backups outside the Docker volume, restrict access and rehearse a restore o
 Before public launch, demonstrate the complete production path: authorized feed → MongoDB draft → durable job → DGX claim → real inference response → reviewed draft → editor publication → Vercel HTML/RSS/sitemap → worker restart with the job/article state intact → restore into a separate database. Test that reader credentials and the ingestion key cannot publish or delete. Preview deployments must use an isolated database and must not consume production jobs.
 
 Hardware inspection and a small live compatible-inference request succeeded through trusted SSH; the checks did not change DNS, download or launch a model, publish news or deploy this application. Keep the host's existing workloads running while evaluating capacity and avoid downloading or launching another model without checking available memory.
+
+## Installed worker
+
+On 18 October 2026, `atlas-times-worker.service` was enabled under the existing `dgxadmin` user on the Spark. Its working directory is `/home/dgxadmin/theatlastimes-worker`; the private `.env` contains the preview Atlas connection and local model configuration. It opens no listening port. `systemctl --user status atlas-times-worker.service` and `journalctl --user -u atlas-times-worker.service` inspect it; `systemctl --user stop atlas-times-worker.service` stops it. Ingestion is disabled and concurrency is one. This worker is separate from the previously existing news services.

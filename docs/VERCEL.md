@@ -93,10 +93,13 @@ Inspect Vercel function logs, authenticated admin status/job/audit outputs and D
 
 After validation, configure the intended custom domain in Vercel and set `SITE_URL` to match it. Submit the sitemaps in Search Console and inspect real deployed URLs. The SEO changes support discovery; they do not guarantee indexing, AI citations or rich results.
 
-## Verification status
+## Verified rollout status — 18 October 2026
 
-Authenticated inspection identified the existing Vercel project `the-atlas-times` and its production domain `www.theatlastimes.com`; no MongoDB integration was attached at that inspection. The existing project used Node 24, so verify/update its runtime to the repository's Node 22 setting when preparing the new deployment.
+- Atlas resource `atlas-times-news` was provisioned through the `mongodbatlas/atlas` Marketplace product and connected to this project's **Preview** environment. The initial `mongodb-atlas` CLI identifier was incorrect; it was corrected.
+- Database `the_atlas_times_preview` contains 2,196 canonical drafts from the 2,353-record public snapshot, with 6,745 reserved identifiers/aliases. Every saved public article ID resolves. No imported record is published. Private/backing-store content outside the public API has not been claimed as exported.
+- The Spark runs `atlas-times-worker.service` as the existing `dgxadmin` user's enabled service, from `/home/dgxadmin/theatlastimes-worker`. It uses the preview Atlas database and the existing loopback Qwen endpoint. Ingestion is disabled until authorized feeds are selected; analysis concurrency is one.
+- The existing Vercel project is connected to `anantm9200/The-Atlas-Times---V2`, rather than the requested `anantm9200/theatlastimes` repository. Its production Git link and domain remain in place. Review the intended repository/cutover before changing that link.
+- Preview environment configuration includes MongoDB, queued analysis, the canonical origin and separate secret editorial/ingestion keys. Secrets and news backups are excluded from Git.
+- Local Vercel build, Docker runtime, 26 tests and the actual Spark/Mongo worker round trip passed. GitHub validation passed for the initial implementation commit.
 
-Trusted DGX hardware inspection, outbound RSS connectivity and the actual analysis adapter/JSON-validation smoke test succeeded against an existing local model service. No newly provisioned Atlas resource, replacement Vercel production deployment, shared-database migration or deployed queue round trip is claimed by those checks. Record account provisioning and the full deployed web → MongoDB → DGX → reviewed publication path as separate release evidence. CI is configured to exercise MongoDB storage and queue transactions against its own disposable replica set; a committed workflow is not a completed CI run.
-
-The local Vercel preview build and isolated MongoDB → actual DGX worker round trip passed. An attempt to provision `mongodb-atlas` through this account's CLI was rejected as unavailable; the browser requires sign-in. Finish resource provisioning through the account dashboard or an authorized Atlas connection before production deployment. The existing production site was left in place.
+Production cutover still requires reviewed publication choices, a full legacy-store inventory/export if private records exist, the intended Git repository connection, real Firebase editor claims, deployed Firestore rules, source permissions, backups and capacity monitoring. Switching an environment variable does not perform those editorial/release steps.
