@@ -14,7 +14,9 @@ If the DGX or its configuration is unavailable, the gateway reports unavailable 
 
 The DGX web port binds loopback and requires the gateway key on every request, including health. A stable HTTPS tunnel exposes that protected application only. MongoDB and the model remain loopback-only. Tailscale Funnel requires the tailnet owner's enablement before a Vercel function outside the tailnet can reach it; ordinary private Tailscale SSH access alone is insufficient. See [Tailscale's requirements](https://tailscale.com/docs/features/tailscale-funnel).
 
-Current status: private DGX application and database are deployed and tested. Funnel reported disabled for the tailnet; its owner enablement is pending. Do not claim the Vercel→DGX cutover succeeded until health, authenticated mutations, editor cookies, server-rendered articles, RSS/sitemaps and missing-page responses pass through the deployed gateway.
+Current status: private DGX application and database are deployed and tested. The owner enabled Funnel for the tailnet. Spark then rejected service configuration because `dgxadmin` was not a local Tailscale operator. The required administrator step is `sudo tailscale set --operator=dgxadmin` on Spark, followed by `tailscale funnel --bg --https=8443 --yes http://127.0.0.1:3011`. MongoDB stays private. Do not claim the Vercel→DGX cutover succeeded until health, authenticated mutations, editor cookies, server-rendered articles, RSS/sitemaps and missing-page responses pass through the deployed gateway.
+
+The DGX-built protected preview is [the-atlas-times-6wwak1tvy](https://the-atlas-times-6wwak1tvy-anant-icl.vercel.app). Its deployment-specific gateway configuration is set; it remains unavailable until Spark accepts its Funnel configuration. No gateway secret was committed or placed in browser-visible code.
 
 Deploy the same application revision/assets to both services. The protected Vercel preview should be checked before the public domain is switched. Keep a private database snapshot and the former configuration for rollback.
 
@@ -28,4 +30,4 @@ Run/database backups and inference job state live on the DGX. Large full databas
 
 ## Build on the DGX
 
-Run `npm run build && npm run package:vercel` on the DGX. The packager writes a Vercel Build Output API artifact containing static assets and a small Node HTTPS relay with no database/model dependencies. Transfer that artifact to the linked deployment checkout and use `vercel deploy --prebuilt`. No local or Vercel recompilation is needed for this release workflow. See [Vercel Build Output API](https://vercel.com/docs/build-output-api).
+Run `npm run build && npm run package:vercel` on the DGX. The packager writes a Vercel Build Output API artifact containing static assets and a small Node HTTPS relay with no database/model dependencies or unused Node helper injection. Transfer that artifact to the linked deployment checkout and use `vercel deploy --prebuilt`. Supply the private gateway configuration through environment variables, using `--env DGX_GATEWAY_KEY --env DGX_ORIGIN` to avoid secret values in process arguments. The tested CLI release used `VERCEL_CLI_USE_NATIVE_BINARY=0` after its native uploader stalled. No local or Vercel recompilation is needed for this release workflow. See [Vercel Build Output API](https://vercel.com/docs/build-output-api).
