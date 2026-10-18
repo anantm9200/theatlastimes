@@ -1,9 +1,10 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { createProductionApp } from "../server";
+// Load the built ESM bundle with its explicit extension. Vercel's TS compiler
+// preserves extensionless imports, which Node cannot resolve in type=module.
+import { createProductionApp } from "../dist/server.mjs";
 
-let application: ReturnType<typeof createProductionApp> | undefined;
+let application;
 // Reuse the Mongo connection pool per warm Vercel instance; never start a poller.
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
+export default async function handler(req, res) {
   try {
     application ||= createProductionApp().catch(error => { application = undefined; throw error; });
     const { app } = await application;

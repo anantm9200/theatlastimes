@@ -55,6 +55,8 @@ jobs:
           MONGODB_TEST_URI: mongodb://127.0.0.1:27017/?replicaSet=atlasTest&directConnection=true
       - name: Build production assets
         run: npm run build
+      - name: Load serverless entry with native Node ESM
+        run: node --input-type=module -e "await import('./api/index.js')"
       - name: Check production dependency advisories
         run: npm audit --omit=dev --audit-level=high
       - name: MongoDB diagnostics on failure

@@ -4,8 +4,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/client",
   "functions": {
-    "api/index.ts": {
-      "includeFiles": "{dist/client/index.html,firebase-applet-config.json}",
+    "api/index.js": {
+      "includeFiles": "{dist/server.mjs,dist/client/index.html,firebase-applet-config.json}",
       "maxDuration": 60,
       "excludeFiles": "{.env*,data/**,backups/**,artifacts/**,graphify-out/**,tests/**,**/*.test.ts}"
     }
