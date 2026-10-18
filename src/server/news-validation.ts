@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
+import { decodeHTML } from "entities";
 import type { Article } from "../types/index.ts";
 
 export class ArticleValidationError extends Error {
@@ -21,7 +22,9 @@ function string(value: unknown, field: string, max: number, fallback = ""): stri
 
 function plain(value: unknown, field: string, max: number, fallback = ""): string {
   const text = string(value, field, max, fallback);
-  return DOMPurify.sanitize(text, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).trim();
+  // Text fields are escaped by their HTML/React renderer. Decode entities once
+  // here so an ampersand in a headline is not stored as literal HTML markup.
+  return decodeHTML(sanitizeHtml(text, { allowedTags: [], allowedAttributes: {} })).trim();
 }
 
 export function normalizeSourceUrl(value: unknown, field = "originalUrl"): string {
@@ -74,12 +77,11 @@ function score(value: unknown, field: string, fallback = 0): number {
 }
 
 function html(value: unknown, fallback?: string): string {
-  return DOMPurify.sanitize(string(value, "fullContent", 100_000, fallback), {
-    ALLOWED_TAGS: ["p", "br", "strong", "b", "em", "i", "u", "h2", "h3", "h4", "ul", "ol", "li", "blockquote", "a", "code", "pre"],
-    ALLOWED_ATTR: ["href", "title"],
-    ALLOW_DATA_ATTR: false,
-    ALLOW_ARIA_ATTR: false,
-    ALLOWED_URI_REGEXP: /^(?:https?:\/\/|mailto:|\/[^/]|#)/i,
+  return sanitizeHtml(string(value, "fullContent", 100_000, fallback), {
+    allowedTags: ["p", "br", "strong", "b", "em", "i", "u", "h2", "h3", "h4", "ul", "ol", "li", "blockquote", "a", "code", "pre"],
+    allowedAttributes: { a: ["href", "title"] },
+    allowedSchemes: ["http", "https", "mailto"],
+    allowProtocolRelative: false,
   });
 }
 

@@ -40,6 +40,17 @@ test("source canonicalization produces durable IDs without removing meaningful q
   assert.equal(normalizeSourceUrl(""), "");
 });
 
+test("sanitization retains text and safe links while rejecting executable HTML", () => {
+  const draft = validateArticle({
+    title: "<b>Research &amp; development</b>",
+    summary: "Costs & benefits — café",
+    fullContent: '<p style="color:red" data-secret="x">Research &amp; development</p><a href="/about" title="About">About</a><a href="//evil.example">External</a><a href="data:text/html,attack">Data</a><svg><script>attack()</script></svg><img src="x" onerror="attack()"><style>body{display:none}</style>',
+  });
+  assert.equal(draft.title, "Research & development");
+  assert.equal(draft.aiSummary, "Costs & benefits — café");
+  assert.equal(draft.fullContent, '<p>Research &amp; development</p><a href="/about" title="About">About</a><a>External</a><a>Data</a>');
+});
+
 test("draft publication sets a publication time and edits protect identity and publication time", () => {
   const draft = validateArticle({ title: "Initial headline", sourcePublishedAt: "2020-01-01T00:00:00Z" });
   const published = validateArticle({ status: "published", reviewedAt: new Date().toISOString(), authorName: "Editor" }, draft);

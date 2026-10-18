@@ -5,7 +5,7 @@ import { articleDescription, articlePath, articleStructuredData, safeExternalUrl
 import { newsDate, newsImage, readNews } from "../lib/newsApi";
 import { Article } from "../types";
 import { Badge } from "@/components/ui/badge";
-import DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from 'dompurify';
 import { Bookmark, BookmarkCheck, Printer } from "lucide-react";
 import { useBriefcase } from "../lib/useBriefcase";
 
