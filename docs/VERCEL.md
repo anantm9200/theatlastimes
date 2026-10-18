@@ -17,7 +17,7 @@ DGX worker ----> existing local model endpoint
 
 Vercel serves published pages and records authenticated editorial changes. Analysis requests enqueue durable jobs. The DGX worker claims jobs, runs the local model, validates the result and stores an unreviewed draft. An editor publishes separately. A private Spark model endpoint does not need to be publicly exposed to Vercel.
 
-This guide describes the deployment configuration, not a completed account provisioning or production rollout. A successful local build or model smoke test does not establish that a Vercel project and Atlas cluster have been created and connected.
+Atlas and a separate Spark worker are provisioned for the protected preview. The final section records verified checks and the remaining production cutover work; configuration examples alone do not establish a production rollout.
 
 ## 1. Connect the GitHub project
 
@@ -100,6 +100,8 @@ After validation, configure the intended custom domain in Vercel and set `SITE_U
 - The Spark runs `atlas-times-worker.service` as the existing `dgxadmin` user's enabled service, from `/home/dgxadmin/theatlastimes-worker`. It uses the preview Atlas database and the existing loopback Qwen endpoint. Ingestion is disabled until authorized feeds are selected; analysis concurrency is one.
 - The existing Vercel project is connected to `anantm9200/The-Atlas-Times---V2`, rather than the requested `anantm9200/theatlastimes` repository. Its production Git link and domain remain in place. Review the intended repository/cutover before changing that link.
 - Preview environment configuration includes MongoDB, queued analysis, the canonical origin and separate secret editorial/ingestion keys. Secrets and news backups are excluded from Git.
-- Local Vercel build, Docker runtime, 26 tests and the actual Spark/Mongo worker round trip passed. GitHub validation passed for the initial implementation commit.
+- The protected [Vercel preview](https://the-atlas-times-q8xprl2j9-anant-icl.vercel.app) is deployed from the requested repository checkout. Live health, private editorial reads (2,196 drafts), public draft exclusion, page HTML, RSS, sitemaps and real 404 checks passed. Access requires Vercel deployment authorization.
+- The preview API created a private fixture and returned HTTP 202 for analysis. The installed Spark worker completed the job with validated Qwen output; the draft stayed private until an explicit fixture review/publication. Readable article HTML, JSON-LD, canonical links, RSS/sitemap inclusion and hidden private review notes passed. The fixture was deleted; the database returned to 2,196 drafts and zero published articles.
+- GitHub validation passed for implementation commit `643bcb8`, including 28 tests against a replica set, the production build, native serverless-module loading with require(ESM) disabled and the dependency audit. The final rate-limit deployment logs contain no warning/error records from these checks. Earlier ARM64 Docker runtime checks are recorded in the audit.
 
 Production cutover still requires reviewed publication choices, a full legacy-store inventory/export if private records exist, the intended Git repository connection, real Firebase editor claims, deployed Firestore rules, source permissions, backups and capacity monitoring. Switching an environment variable does not perform those editorial/release steps.

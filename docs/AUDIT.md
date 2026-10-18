@@ -1,6 +1,6 @@
 # Repository audit
 
-Audit dates: 17–18 October 2026. Scope: the supplied source repository, local build and API behavior, dependency metadata, and the configured DGX connection. This is a source and local runtime audit; it does not establish the state of a deployed website, Search Console account, publisher contracts, or a provisioned production database.
+Audit dates: 17–18 October 2026. Scope: the supplied source repository, local build and API behavior, dependency metadata, and the configured DGX connection. The validation record below distinguishes source checks, the protected Vercel preview, Atlas migration and actual Spark execution. The existing public website was not cut over; Search Console, publisher contracts and private legacy-store completeness remain outside the verified scope.
 
 ## Assessment
 
@@ -56,16 +56,16 @@ In the requested production setup, Vercel enqueues analysis jobs in MongoDB and 
 
 The optional OpenAI-compatible provider makes the summarization path usable with a compatible DGX inference service. NVIDIA documents that deployment pattern in its [DGX Spark vLLM playbook](https://build.nvidia.com/spark/vllm/overview). The actual Atlas `analyzeArticle` adapter and JSON validator passed a live `qwen3.8:27b` test through a temporary SSH tunnel: approximately 50.45 seconds, 204 prompt tokens and 485 completion tokens, with five key points and an explicit missing-context qualification. A separate much smaller optimized JSON fixture took about 7.25 seconds (93 input and 39 output tokens). These are smoke tests, not throughput or factual-accuracy benchmarks; the shorter fixture is not representative of the application's normal request. No model was downloaded or launched, and the temporary tunnel was cleaned up.
 
-The configured SSH alias `DGXSpark001` initially failed because its `.local` hostname did not resolve. A reachable private-network address was subsequently verified using the existing trusted SSH host key. Inspection confirmed an aarch64 host, NVIDIA GB10 GPU and an installed Docker runtime; Ollama is listening on host loopback port 11434, with existing compatible model endpoints also available on the host. BBC world and technology HTTPS feeds returned valid RSS from the DGX during a connectivity check; this does not select those feeds for production or grant reuse rights. No news was published and this application was not deployed on the DGX. [DGX.md](DGX.md) gives the connection and deployment steps without committing private addresses.
+The configured SSH alias `DGXSpark001` initially failed because its `.local` hostname did not resolve. A reachable private-network address was subsequently verified using the existing trusted SSH host key. Inspection confirmed an aarch64 host, NVIDIA GB10 GPU and an installed Docker runtime; Ollama is listening on host loopback port 11434, with existing compatible model endpoints also available on the host. BBC world and technology HTTPS feeds returned valid RSS from the DGX during a connectivity check; this does not select those feeds for production or grant reuse rights. The initial inspection published no news. The application worker was subsequently installed as a separate user service and successfully processed a job against the preview Atlas database. [DGX.md](DGX.md) gives the connection and deployment steps without committing private addresses.
 
 Capacity is unresolved: the inspected host was using roughly 93 of 121 GiB RAM and 10 GiB swap. A separate existing news worker reported 1,606 pending, 11 processing and 762 failed jobs even while its health returned `ok`. That worker is not this repository. Investigate its backlog and memory pressure before enabling another scheduled workload; one successful short inference request does not demonstrate spare production capacity.
 
 ## Release and operations still required
 
-- Provision/link MongoDB Atlas through Vercel, set the actual production `SITE_URL` and deployment environment, and connect the DGX worker to the same database. Keep any self-hosted app binding private until its proxy is ready.
-- Generate separate editor and ingestion secrets; provision real Firebase editor claims if using the browser editor.
+- Prepare the production environment and intended Git connection using the verified preview setup. Atlas and Spark are connected to `the_atlas_times_preview`; choose a separate production database and review the public-domain cutover.
+- Separate preview editor and ingestion secrets are configured. Provision production credentials and real Firebase editor claims if using the browser editor.
 - Choose authorized feed URLs and review source/excerpt/image usage before enabling ingestion.
-- Review and migrate any existing news as drafts. A newly provisioned MongoDB database starts empty until the import is verified.
+- Review the 2,196 migrated drafts before publishing. Inventory/export private legacy stores separately if they contain records absent from the saved public API snapshot.
 - Supply real publisher, author and contact details. Review all policy pages for accuracy.
 - Make the DGX private-network address stable and choose a verified inference model configuration.
 - Configure MongoDB backups and rehearse a restore; monitor database capacity, failed jobs and ingestion, and retain the audit trail. For optional local SQLite, use the supplied backup tool or persistent container volume.
@@ -74,17 +74,19 @@ Capacity is unresolved: the inspected host was using roughly 93 of 121 GiB RAM a
 
 ## Validation record
 
-Verified locally on 18 October 2026:
+Verified locally, in GitHub CI and on the named preview/worker on 18 October 2026:
 
-- Node 22 type check and production build pass.
-- 26 tests pass with no skips against an isolated MongoDB replica set, including transaction rollback, concurrent writers, source deduplication, draft privacy, authenticated publication, stale revision protection, fenced job claims/retries, and worker completion.
+- Node 22 type check and production build pass. GitHub validation passed for the final implementation, including native ESM loading with CommonJS-to-ESM loading disabled to reproduce the Vercel restriction.
+- 28 tests pass with no skips against an isolated MongoDB replica set, including transaction rollback, concurrent writers, source deduplication, draft privacy, authenticated publication, stale revision protection, fenced job claims/retries, and worker completion.
 - Production dependency audit reports zero vulnerabilities after removing unused packages, updating the lockfile and overriding the vulnerable transitive gRPC version.
-- Vercel CLI preview build succeeds with the Node 22 function, readable HTML template, explicit dynamic routes and static asset output. This is a build, not a live deployment.
-- Final ARM64 Docker image builds. Its Mongo-backed runtime passes health, private draft creation, queued analysis (202), reviewed fixture publication, readable article HTML/JSON-LD, RSS/sitemaps, private review notes and real 404 checks. Without MongoDB, production exits instead of creating an empty SQLite store.
+- Vercel CLI preview build succeeds with the Node 22 function, readable HTML template, explicit dynamic routes and static asset output. The serverless entry loads the explicit built ESM bundle; server sanitization uses a parser allowlist without the DOM emulator dependency that failed under Vercel runtime instrumentation. Browser HTML retains DOMPurify sanitization.
+- The ARM64 Docker image build and runtime verification preceded the final serverless packaging changes. Its Mongo-backed runtime passes health, private draft creation, queued analysis (202), reviewed fixture publication, readable article HTML/JSON-LD, RSS/sitemaps, private review notes and real 404 checks. Without MongoDB, production exits instead of creating an empty SQLite store.
 - Actual DGX Spark execution of the built worker claims a queued fixture from an isolated MongoDB replica set, invokes the existing local Qwen model and persists a succeeded job with five validated key points, model provenance, two audit events and zero published articles. Test database and temporary worker files are cleaned after verification; no production service is replaced.
 - Browser checks pass for desktop/mobile navigation, single current canonical/title/robots metadata, empty/populated news, local bookmarks/preferences and the editorial sign-in guard. A real Firebase editor account was not provisioned during this audit.
 - A private snapshot of 2,353 current public articles was downloaded from the existing site. The MongoDB migration rehearsal imported 2,196 canonical drafts, deduplicated 157 repeated source records and reported zero failures. This is the public API snapshot, not proof that every private/backing-store record has been exported. The Spark refuses that site's HTTPS certificate during direct source access; certificate verification was preserved. Fix that trust/hostname issue before using the public site as a Spark source.
 
 The Atlas resource `atlas-times-news` is now provisioned and linked to Preview. The cloud migration contains 2,196 canonical drafts and resolves all 2,353 public source IDs through 6,745 reserved identifiers/aliases; no imported records are public. The Spark's enabled `atlas-times-worker.service` uses that preview database. The live Vercel project is linked to a different repository (`The-Atlas-Times---V2`); its production Git connection and domain were preserved. Full private-store inventory/export, reviewed publication, correct production repository connection, deployed Firestore rules, publisher configuration and sustained capacity remain release work.
+
+The protected [Vercel preview](https://the-atlas-times-q8xprl2j9-anant-icl.vercel.app) passed live health, authentication, draft visibility, 404, RSS and sitemap checks. Its API queued a real draft analysis completed by the installed Spark service; an explicitly fictional fixture then passed editorial publication, readable article HTML/JSON-LD and discovery checks. The fixture was deleted and the preview returned to 2,196 drafts and zero published articles. Vercel module-format failures and proxy-client rate-limit configuration found during deployment were corrected; final request logs showed no error/warning records. The exact source implementation passed [GitHub validation](https://github.com/anantm9200/theatlastimes/actions/runs/39128357872).
 
 The repository graph was refreshed after implementation. The graph extractor reported semantic file-type warnings; it is a navigation aid rather than a complete runtime dependency model. Generated graph files, test artifacts, credentials and news backups are excluded from Git.
