@@ -17,6 +17,7 @@ import { configuredFeeds, ingestFeeds, ingestionState } from "./src/server/feeds
 import { renderPage, escapeHtml } from "./src/server/html";
 import { articlePath, siteOrigin } from "./src/lib/seo";
 import { plainText } from "./src/lib/seo";
+import { rateLimitClientKey } from "./src/server/client-ip";
 
 function integer(value: unknown, fallback: number, max: number) {
   if (value === undefined) return fallback;
@@ -40,8 +41,9 @@ export function createApp(store: NewsStoreAdapter = new NewsStore(), jobs?: Mong
   });
   app.use(express.json({ limit: "256kb" }));
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); res.setHeader("X-Robots-Tag", "noindex"); next(); });
-  app.use("/api", rateLimit({ windowMs: 60000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false }));
-  const expensiveLimit = rateLimit({ windowMs: 15 * 60000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false });
+  const platformRateKey = process.env.VERCEL === "1" ? { keyGenerator: (request: express.Request) => rateLimitClientKey(request, true) } : {};
+  app.use("/api", rateLimit({ ...platformRateKey, windowMs: 60000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false }));
+  const expensiveLimit = rateLimit({ ...platformRateKey, windowMs: 15 * 60000, limit: 20, standardHeaders: "draft-7", legacyHeaders: false });
   const asyncRoute = (handler: express.RequestHandler): express.RequestHandler => (req, res, next) => { Promise.resolve(handler(req, res, next)).catch(next); };
   const route = (method: "get" | "post" | "put" | "delete", pathname: string, ...handlers: express.RequestHandler[]) => app[method](pathname, ...handlers.map(asyncRoute));
   route("get", "/api/health", async (_req, res) => {
