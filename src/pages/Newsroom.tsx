@@ -41,7 +41,7 @@ export default function Newsroom({ mode }: { mode: NewsroomMode }) {
     finally {setLoading(false);}
   }
   const now=Date.now();
-  const sourceName=id ? decodeURIComponent(id) : "";
+  const sourceName=id || "";
   const sorted=useMemo(()=>[...articles].sort((a,b)=>Date.parse(b.publishedAt)-Date.parse(a.publishedAt)),[articles]);
   const sourceNames=useMemo(()=>{
     const counts = new Map<string,number>();
