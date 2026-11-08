@@ -27,8 +27,11 @@ async function find(article: Article, fetcher: typeof fetch): Promise<ContextIma
       if(info?.mediatype!=="BITMAP")continue;
       const license=asText(meta.LicenseShortName?.value);
       if(!licenseAllowed.test(license))continue;
-      const description=asText(`${page.title||""} ${meta.ImageDescription?.value||""}`).toLowerCase();
-      if(terms.filter(term=>description.includes(term)).length<2)continue;
+      const description=asText(meta.ImageDescription?.value).toLowerCase();
+      const filename=asText(page.title).toLowerCase();
+      // A relevant filename cannot override a contradictory file description.
+      const subjectText=description || filename;
+      if(terms.filter(term=>subjectText.includes(term)).length<2)continue;
       const credit=asText(meta.Attribution?.value||meta.Artist?.value||meta.Credit?.value);
       if(!credit)continue;
       const img=info.thumburl||info.url,source=info.descriptionurl;
