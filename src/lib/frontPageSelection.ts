@@ -64,7 +64,8 @@ export function frontPageSelection(all: Article[], now = Date.now()) {
   const topIds = new Set([hero?.id, ...latest.map(a => a.id)]);
   const sectioned = NEWS_DESKS.map(desk => ({
     ...desk,
-    reports: sorted.filter(a => !topIds.has(a.id) && (desk.categories as readonly string[]).includes(a.category)).slice(0, 6),
+    // Section desks are independently browsable: they also contain reports shown in the lead rail.
+    reports: sorted.filter(a => a.id !== hero?.id && (desk.categories as readonly string[]).includes(a.category)).slice(0, 6),
     count: sorted.filter(a => (desk.categories as readonly string[]).includes(a.category)).length,
   }));
   const used = new Set(sectioned.flatMap(desk => desk.reports.map(a => a.id)));
