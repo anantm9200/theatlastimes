@@ -21,6 +21,7 @@ import { rateLimitClientKey } from "./src/server/client-ip";
 import { constantEqual, EditorSessions, sessionToken, writeSessionCookie } from "./src/server/editor-sessions";
 import { Publishers, NEWS_CATEGORIES } from "./src/server/publishers";
 import { publicArticle } from "./src/server/public-article";
+import { sourceWire } from "./src/server/source-wire";
 
 function integer(value: unknown, fallback: number, max: number) {
   if (value === undefined) return fallback;
@@ -81,6 +82,7 @@ export function createApp(store: NewsStoreAdapter = new NewsStore(), jobs?: Mong
     try { await store.count(); res.json({ status: "ok", storage: "ready" }); }
     catch { res.status(503).json({ status: "unavailable", storage: "unavailable" }); }
   });
+  route("get", "/api/source-wire", async (_req, res) => res.json(await sourceWire()));
   route("get", "/api/news", async (req, res, next) => {
     try {
       const limit = integer(req.query.limit, 100, 1000);
@@ -197,7 +199,7 @@ export function createApp(store: NewsStoreAdapter = new NewsStore(), jobs?: Mong
     const pages = Math.ceil((await store.count()) / 1000);
     res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>${origin}/sitemaps/pages.xml</loc></sitemap>${Array.from({ length: pages }, (_, i) => `<sitemap><loc>${origin}/sitemaps/articles-${i + 1}.xml</loc></sitemap>`).join("")}</sitemapindex>`);
   });
-  route("get", "/sitemaps/pages.xml", async (_req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/", "/archives", "/about", "/editorial-policy"].map(p => `<url><loc>${origin}${p}</loc></url>`).join("")}</urlset>`));
+  route("get", "/sitemaps/pages.xml", async (_req, res) => res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/", "/latest", "/live", "/analysis", "/topics", "/sources", "/wire", "/archives", "/about", "/editorial-policy", ...NEWS_CATEGORIES.map(category => `/category/${category.toLowerCase()}`)].map(p => `<url><loc>${origin}${p}</loc></url>`).join("")}</urlset>`));
   route("get", "/sitemaps/articles-:page.xml", async (req, res, next) => {
     try { const page = integer(req.params.page, 1, Math.max(1, Math.ceil((await store.count()) / 1000))); res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${(await store.list({ limit: 1000, offset: (page - 1) * 1000 })).map(xmlUrl).join("")}</urlset>`); } catch(e) { next(e); }
   });

@@ -2,6 +2,7 @@ import type { Article } from "../types";
 import { articleDescription, articlePath, articleStructuredData, collectionStructuredData, DEFAULT_DESCRIPTION, INDEX_ROBOTS, serializeJsonLd, SITE_NAME } from "../lib/seo";
 import type { NewsStoreAdapter } from "./store-types";
 import { publicArticle } from "./public-article";
+import { isConfirmedBreaking, NEWS_DESKS } from "../lib/frontPageSelection";
 
 export const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const link = (path: string, label: string) => `<a href="${escapeHtml(path)}">${escapeHtml(label)}</a>`;
@@ -19,6 +20,31 @@ export async function pageContent(pathname: string, store: NewsStoreAdapter, ori
       title = `${article.title} | ${SITE_NAME}`; description = articleDescription(article); structuredData = articleStructuredData(article, origin); image = article.imageUrl;
       body = `<article><h1>${escapeHtml(article.title)}</h1><p>${escapeHtml(article.authorName || "The Atlas Times")} · Published <time datetime="${escapeHtml(article.publishedAt)}">${escapeHtml(article.publishedAt)}</time></p>${article.modifiedAt && article.modifiedAt !== article.publishedAt ? `<p>Updated <time datetime="${escapeHtml(article.modifiedAt)}">${escapeHtml(article.modifiedAt)}</time></p>` : ""}${article.sourceAuthor ? `<p>Original reporting by ${escapeHtml(article.sourceAuthor)} · ${link(article.originalUrl, article.sourceName)}</p>` : ""}${article.textLicense ? `<p>Adapted source excerpt: ${escapeHtml(article.textLicense)} ${article.textLicenseUrl ? link(article.textLicenseUrl, "Terms and license") : ""}</p>` : ""}${article.sourcePublishedAt ? `<p>Source published <time datetime="${escapeHtml(article.sourcePublishedAt)}">${escapeHtml(article.sourcePublishedAt)}</time></p>` : ""}<p>${escapeHtml(article.aiSummary)}</p>${article.aiGenerated ? `<p>AI-assisted analysis. ${article.publicationMode === "automatic" ? "Published after automated checks; no human review." : "Reviewed by an editor before publication."}</p>` : ""}${article.fullContent || ""}${article.detailedHumanizedSummary ? `<h2>Summary</h2><p>${escapeHtml(article.detailedHumanizedSummary)}</p>` : ""}${article.keyPoints?.length ? `<h2>Key points</h2><ul>${article.keyPoints.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ul>` : ""}${article.whyItMatters ? `<h2>Context and interpretation</h2><p>${escapeHtml(article.whyItMatters)}</p>` : ""}${article.originalUrl ? `<p>Source: ${link(article.originalUrl, article.sourceName)}</p>` : ""}${article.imageUrl ? `<figure>${article.imageType === "publisher" ? `<a href="${escapeHtml(article.originalUrl)}">` : ""}<img src="${escapeHtml(article.imageUrl)}" alt="${escapeHtml(article.imageCaption || article.title)}" style="max-width:100%;height:auto;object-fit:contain" referrerpolicy="no-referrer">${article.imageType === "publisher" ? "</a>" : ""}<figcaption>${article.imageType === "publisher" ? `Courtesy: ${escapeHtml(article.sourceName)} · ` : ""}${escapeHtml(article.imageCaption)} ${escapeHtml(article.imageCredit)} ${escapeHtml(article.imageLicense)}</figcaption></figure>` : ""}</article>`;
     }
+  } else if (["/latest", "/live", "/analysis", "/topics", "/sources", "/wire"].includes(pathname) || /^\/source\/[^/]+$/.test(pathname)) {
+    const all = (await store.list({ limit: 200 })).map(publicArticle);
+    const source = pathname.startsWith("/source/") ? decodeURIComponent(pathname.slice(8)) : "";
+    const label = pathname === "/live" ? "Breaking news desk" :
+      pathname === "/analysis" ? "Analysis and context" :
+      pathname === "/topics" ? "Editorial sections" :
+      pathname === "/sources" ? "Source directory" :
+      pathname === "/wire" ? "Official source wire" :
+      pathname === "/latest" ? "Latest reports" : source || "Source reports";
+    const items = pathname === "/live" ? all.filter(article => isConfirmedBreaking(article)) :
+      pathname === "/analysis" ? all.filter(article => article.whyItMatters && article.keyPoints?.length) :
+      source ? all.filter(article => article.sourceName.toLowerCase() === source.toLowerCase()) : all;
+    title = `${label} | ${SITE_NAME}`;
+    description = `Source-attributed ${label.toLowerCase()} from The Atlas Times global newsroom.`;
+    if (pathname === "/wire") {
+      body = "<h1>Official source wire</h1><p>Recent, directly linked headlines from named official publishers. They are not independently verified or breaking reports from The Atlas Times.</p>";
+    } else if (pathname === "/topics") {
+      body = `<h1>Editorial sections</h1>${NEWS_DESKS.map(desk => `<section><h2>${link(`/category/${desk.slug}`,desk.title)}</h2><p>${escapeHtml(desk.kicker)}</p></section>`).join("")}`;
+    } else if (pathname === "/sources") {
+      const publishers = [...new Set(all.map(article => article.sourceName))];
+      body = `<h1>Source directory</h1>${publishers.map(name => `<p>${link(`/source/${encodeURIComponent(name)}`,name)}</p>`).join("")}`;
+    } else {
+      body = `<h1>${escapeHtml(label)}</h1>${pathname === "/live" && !items.length ? "<p>No confirmed breaking news at this time. <a href='/latest'>Read latest reports</a>.</p>" : listing(items)}`;
+    }
+    structuredData = collectionStructuredData(title, pathname, items, origin);
   } else if (pathname === "/about" || pathname === "/editorial-policy") {
     title = `${pathname === "/about" ? "About" : "Editorial policy"} | ${SITE_NAME}`;
     description = pathname === "/about" ? "About The Atlas Times and its source-linked news coverage." : "How The Atlas Times uses sources, reviews AI-assisted drafts, and handles corrections.";

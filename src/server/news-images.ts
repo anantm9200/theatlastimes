@@ -36,5 +36,14 @@ export function publisherImage(article: Article, publisher: Publisher): ImageFie
 export async function selectNewsImage(article: Article, publisher: Publisher, search: string, lookup = freeImage): Promise<ImageFields> {
   // Free licensed material is considered first. Publisher URLs are never fetched,
   // resized, stripped, downloaded or proxied by this application.
-  return await lookup(article, search) || publisherImage(article, publisher) || {};
+  const headline = article.title.split(/[—–:|]/)[0]?.replace(/[^\p{L}\p{N} -]/gu, " ").replace(/\s+/g, " ").trim() || "";
+  const words = headline.split(/\s+/).filter(Boolean);
+  // Retry with terms grounded in the actual headline, never generic stock-image categories.
+  // The image lookup itself checks the license, credit, description and file host.
+  const phrases = [...new Set([search, words.slice(0, 4).join(" "), words.slice(0, 2).join(" ")].map(item => item?.trim()).filter(Boolean))].slice(0, 3);
+  for (const phrase of phrases) {
+    const licensed = await lookup(article, phrase);
+    if (licensed) return licensed;
+  }
+  return publisherImage(article, publisher) || {};
 }

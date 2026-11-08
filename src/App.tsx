@@ -19,6 +19,8 @@ const Editorial = lazy(() => import('./pages/Editorial'));
 import { UserProvider } from './lib/useAuth';
 import SeoHead from './lib/SeoHead';
 import PublicationInfo from './pages/PublicationInfo';
+import Newsroom from './pages/Newsroom';
+import SourceWire from './pages/SourceWire';
 
 export default function App() {
   return (
@@ -32,6 +34,13 @@ export default function App() {
             <Route path="article/:id/edit" element={<EditArticle />} />
             <Route path="article/:id/delete" element={<DeleteArticle />} />
             <Route path="category/:id" element={<Feed />} />
+            <Route path="latest" element={<Newsroom mode="latest" />} />
+            <Route path="live" element={<Newsroom mode="live" />} />
+            <Route path="analysis" element={<Newsroom mode="analysis" />} />
+            <Route path="topics" element={<Newsroom mode="topics" />} />
+            <Route path="sources" element={<Newsroom mode="sources" />} />
+            <Route path="wire" element={<SourceWire />} />
+            <Route path="source/:id" element={<Newsroom mode="source" />} />
             <Route path="region/:id" element={<Feed />} />
             <Route path="preferences" element={<Preferences />} />
             <Route path="new-news" element={<NewNews />} />

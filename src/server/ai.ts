@@ -8,8 +8,20 @@ export function aiConfiguration() {
   return { provider, configured: provider === "openai" ? Boolean(process.env.AI_BASE_URL && process.env.AI_MODEL) : provider === "gemini" ? Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_MODEL) : false };
 }
 
+/** Strip Qwen-style reasoning wrappers without accepting invalid or invented JSON. */
+export function normalizeAiJson(text: string): string {
+  if (typeof text !== "string" || !text.trim() || text.length > 100_000) throw new Error("Inference returned no usable JSON");
+  const withoutReasoning = text.trim().replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim();
+  const cleaned = withoutReasoning.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/,"").trim();
+  let parsed: unknown;
+  try { parsed = JSON.parse(cleaned); }
+  catch { throw new Error("Inference returned invalid JSON"); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Inference JSON must be an object");
+  return JSON.stringify(parsed);
+}
+
 export function parseAnalysis(text: string): Analysis {
-  const parsed = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+  const parsed = JSON.parse(normalizeAiJson(text));
   if (!parsed || !Array.isArray(parsed.keyPoints) || parsed.keyPoints.length < 1 || parsed.keyPoints.length > 8 ||
       parsed.keyPoints.some((v: unknown) => typeof v !== "string" || !v.trim() || v.length > 800) ||
       typeof parsed.whyItMatters !== "string" || !parsed.whyItMatters.trim() || parsed.whyItMatters.length > 2000 ||
@@ -34,7 +46,7 @@ export async function generateJson(system: string, material: string): Promise<st
   if (provider === "gemini") {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY!, httpOptions: { timeout: 90000 } });
     const result = await ai.models.generateContent({ model: process.env.GEMINI_MODEL!, contents: material, config: { systemInstruction: system, responseMimeType: "application/json", maxOutputTokens: 3000 } });
-    return result.text || "";
+    return normalizeAiJson(result.text || "");
   }
   const base = new URL(process.env.AI_BASE_URL!.replace(/\/$/, "") + "/");
   if (!["http:", "https:"].includes(base.protocol) || base.username || base.password || base.search || base.hash) throw new Error("Invalid AI_BASE_URL");
@@ -51,5 +63,5 @@ export async function generateJson(system: string, material: string): Promise<st
   if (body.length > 100000) throw new Error("Inference response exceeded the size limit");
   const result = JSON.parse(body);
   if (result.choices?.[0]?.finish_reason === "length") throw new Error("Inference response was truncated");
-  return result.choices?.[0]?.message?.content || "";
+  return normalizeAiJson(result.choices?.[0]?.message?.content || "");
 }
