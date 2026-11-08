@@ -27,6 +27,8 @@ jobs:
         run: npm ci
       - name: Check types
         run: npm run lint
+      - name: Validate DGX worker diagnosis script syntax
+        run: bash -n deploy/diagnose-worker.sh
       - name: Test public DGX gateway monitoring without network calls
         run: node --test tests/production-health.test.mjs
       - name: Start isolated MongoDB replica set
