@@ -12,6 +12,7 @@ const newsroomLinks = [
   { label: "Analysis", path: "/analysis" },
   { label: "All desks", path: "/topics" },
   { label: "Sources", path: "/sources" },
+  { label: "Source wire", path: "/wire" },
   { label: "Archives", path: "/archives" },
 ];
 
