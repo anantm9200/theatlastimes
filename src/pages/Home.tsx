@@ -65,7 +65,7 @@ export default function Home() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,1fr)] gap-8 lg:gap-10 mb-12">
         <article className="min-w-0">
-          <Link to={articlePath(hero)} className="block group"><NewsPhoto article={hero} priority /></Link>
+          <NewsPhoto article={hero} priority />
           <div className="flex items-center gap-3 mt-5 mb-3">
             <span className={`font-bold text-xs uppercase tracking-widest ${heroBreaking ? "text-red-700" : "text-primary"}`}>{heroBreaking ? "Verified breaking" : reportAgeHours(hero,refreshedAt) > 36 ? "From the news archive" : "Top report"}</span>
             <span className="text-xs text-muted-foreground">{hero.category}</span>
