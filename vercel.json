@@ -1,36 +1,35 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && node scripts/build-client-assets.mjs",
   "outputDirectory": "dist/client",
   "git": {
     "deploymentEnabled": false
   },
   "functions": {
     "api/index.js": {
-      "maxDuration": 60,
-      "excludeFiles": "{.env*,data/**,backups/**,artifacts/**,graphify-out/**,tests/**,**/*.test.ts}"
+      "maxDuration": 60
     }
   },
   "routes": [
     {
-      "src": "/assets/(.*)",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      },
-      "dest": "/assets/$1"
+      "src": "/api/(.*)",
+      "dest": "/api/index"
     },
     {
-      "src": "/news-placeholder.svg",
-      "dest": "/news-placeholder.svg"
+      "src": "/article/([^/]+)",
+      "dest": "/api/index"
     },
     {
-      "src": "/The%20Atlas%20Times.png",
-      "dest": "/The Atlas Times.png"
+      "src": "/(robots\\.txt|sitemap\\.xml|news-sitemap\\.xml|rss\\.xml|feed\\.xml)",
+      "dest": "/api/index"
+    },
+    {
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "/api/index"
+      "dest": "/index.html"
     }
   ]
 }
