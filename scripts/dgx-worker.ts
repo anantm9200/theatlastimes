@@ -49,7 +49,10 @@ export async function processAnalysisJob(queue: AnalysisQueue, store: AnalysisJo
         const hold = publicationHold(article, analysis, publisher, check);
         publication = { coverage: check.isGlobal ? "global" : "local", category: check.category, automationCheck: { verdict: hold ? "held" : "passed", reason: hold || check.reason, checkedAt: new Date().toISOString(), version: PUBLICATION_CHECK_VERSION } };
         if (!hold && publisher) publication = { ...publication, imageUrl: "", imageCredit: "", imageLicense: "", imageSource: "", imageCaption: "", imageType: "", ...await selectNewsImage(article, publisher, check.imageSearch), status: "published", publicationMode: "automatic", authorName: "The Atlas Times automated desk", reviewedAt: new Date().toISOString(), reviewNote: "Automated checks: approved source terms, attribution, freshness, global relevance, source evidence and supported numbers. No human review is implied." };
-      } catch {
+      } catch (error) {
+        // Publication stays held. Surface the sanitized cause to the private worker logs.
+        // Never weaken the editorial gate or publish in response to a model/check failure.
+        console.warn(`Publication check held for job ${job.id}: ${safeJobError(error)}`);
         publication = { automationCheck: { verdict: "held", reason: "Publication check was unavailable or returned invalid evidence", checkedAt: new Date().toISOString(), version: PUBLICATION_CHECK_VERSION } };
       }
     }
@@ -62,6 +65,9 @@ export async function processAnalysisJob(queue: AnalysisQueue, store: AnalysisJo
     return await queue.completeWith(job, session => store.compareAndSave(updated, `worker:${job.leaseOwner}`, job.revision, session));
   } catch (error) {
     if (lostLease || error instanceof NewsJobLeaseError) return "lease-lost";
+    // Previously the only visible outcome was "retry-or-failed". The actual
+    // sanitized cause is persisted in MongoDB; also log it for quick diagnosis.
+    console.error(`Analysis job ${job.id} failed at attempt ${job.attempts}/${job.maxAttempts}: ${safeJobError(error)}`);
     await queue.fail(job, error);
     return "retry-or-failed";
   } finally { clearInterval(interval); }
