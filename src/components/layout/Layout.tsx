@@ -5,6 +5,8 @@ import type { Article } from "../../types";
 import { articlePath } from "../../lib/seo";
 import { readNews } from "../../lib/newsApi";
 import { isConfirmedBreaking, NEWS_DESKS } from "../../lib/frontPageSelection";
+import NewsroomPreFooter from "../NewsroomPreFooter";
+import NewsroomFooter from "../NewsroomFooter";
 
 const newsroomLinks = [
   { label: "Latest", path: "/latest" },
@@ -41,7 +43,7 @@ export default function Layout() {
   },[menuOpen]);
   const breaking=useMemo(()=>latestNews.filter(article=>isConfirmedBreaking(article)),[latestNews]);
   const strip=breaking.length ? breaking.slice(0,5) : latestNews.slice(0,5);
-  return <div className="min-h-screen bg-background flex flex-col print:block font-sans w-full mx-auto px-3 sm:px-5 lg:px-[1.5%] print:px-0">
+  return <div id="page-top" className="min-h-screen bg-background flex flex-col print:block font-sans w-full mx-auto px-3 sm:px-5 lg:px-[1.5%] print:px-0">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] bg-background p-3 border border-foreground">Skip to content</a>
     <header className="bg-background print:hidden">
       {strip.length>0 && <div aria-label={breaking.length?"Confirmed breaking news":"Latest published reports"}
@@ -84,13 +86,7 @@ export default function Layout() {
       </nav>}
     </header>
     <main id="main-content" tabIndex={-1} className="flex-1 print:flex-none w-full bg-background pt-5 pb-12 print:pb-0"><Outlet/></main>
-    <footer className="border-t-4 border-foreground bg-zinc-950 text-zinc-200 px-5 sm:px-8 py-11 print:hidden">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-9">
-        <div><h2 className="font-old-english font-bold text-3xl mb-4">The Atlas Times</h2><p className="text-sm text-zinc-400 leading-relaxed">A source-attributed global newsroom with carefully labeled AI-assisted reporting. Follow original publishers for primary evidence.</p><p className="text-xs text-zinc-500 mt-7">© {new Date().getFullYear()} The Atlas Times</p></div>
-        <nav aria-label="Newsroom pages" className="flex flex-col gap-3 text-sm"><h3 className="text-xs tracking-widest uppercase font-bold text-white">Newsroom</h3>{newsroomLinks.map(item=><Link key={item.path} to={item.path} className="hover:text-white">{item.label}</Link>)}</nav>
-        <nav aria-label="Sections" className="flex flex-col gap-3 text-sm"><h3 className="text-xs tracking-widest uppercase font-bold text-white">Sections</h3>{NEWS_DESKS.map(item=><Link key={item.slug} to={`/category/${item.slug}`} className="hover:text-white">{item.title}</Link>)}</nav>
-        <nav aria-label="Publication information" className="flex flex-col gap-3 text-sm"><h3 className="text-xs tracking-widest uppercase font-bold text-white">Publication</h3><Link to="/about">About</Link><Link to="/editorial-policy">Sources &amp; corrections</Link><Link to="/editorial">Editorial desk</Link><Link to="/archives">Full archive</Link></nav>
-      </div>
-    </footer>
+    <NewsroomPreFooter />
+    <NewsroomFooter />
   </div>;
 }

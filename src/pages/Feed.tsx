@@ -5,6 +5,7 @@ import { articlePath, collectionStructuredData } from "../lib/seo";
 import { newsAge, readNews } from "../lib/newsApi";
 import NewsPhoto from "../components/NewsPhoto";
 import NewsReportCard from "../components/NewsReportCard";
+import NewsroomLoading from "../components/NewsroomLoading";
 import type { Article } from "../types";
 
 const PAGE_SIZE=48;
@@ -47,7 +48,7 @@ export default function Feed() {
       <h1 className="font-serif font-bold text-4xl sm:text-6xl">{title}</h1>
       <p className="text-sm mt-4 text-muted-foreground">Published reports, primary source links and clearly marked AI-assisted context.</p>
     </header>
-    {loading&&!articles.length?<p role="status" className="py-16">Loading source-verified reports…</p>:
+    {loading&&!articles.length?<NewsroomLoading compact />:
      error&&!articles.length?<p role="alert" className="py-16 text-red-700">{error}</p>:
      !lead?<div className="py-16 border-l-4 pl-6">
        <h2 className="font-serif text-2xl font-bold">No published reports in this desk yet</h2>

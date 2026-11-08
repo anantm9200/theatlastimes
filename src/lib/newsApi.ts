@@ -2,7 +2,18 @@ import type { Article } from "../types";
 import { format, formatDistanceToNow } from "date-fns";
 
 export async function readNews<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal });
+  let response: Response;
+  try {
+    const timeout = AbortSignal.timeout(15_000);
+    const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    response = await fetch(url, { signal: requestSignal });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error("The news service took longer than expected to respond.");
+    }
+    throw new Error("Unable to reach the newsroom right now. Please try again.");
+  }
   if (!response.ok) throw new Error(response.status === 404 ? "Report not found." : "News is temporarily unavailable. Please try again.");
   const body = await response.json();
   if (!body || !("data" in body)) throw new Error("The news service returned an invalid response.");

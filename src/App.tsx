@@ -21,12 +21,13 @@ import SeoHead from './lib/SeoHead';
 import PublicationInfo from './pages/PublicationInfo';
 import Newsroom from './pages/Newsroom';
 import SourceWire from './pages/SourceWire';
+import NewsroomLoading from './components/NewsroomLoading';
 
 export default function App() {
   return (
     <UserProvider>
       <BrowserRouter>
-        <Suspense fallback={<div role="status" className="py-20 text-center">Loading page…</div>}>
+        <Suspense fallback={<NewsroomLoading compact />}>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />

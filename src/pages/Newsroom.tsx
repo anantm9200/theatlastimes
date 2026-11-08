@@ -6,6 +6,7 @@ import { articlePath, collectionStructuredData } from "../lib/seo";
 import { newsAge, readNews } from "../lib/newsApi";
 import { NEWS_DESKS, isConfirmedBreaking, reportAgeHours } from "../lib/frontPageSelection";
 import NewsReportCard from "../components/NewsReportCard";
+import NewsroomLoading from "../components/NewsroomLoading";
 
 export type NewsroomMode = "latest" | "live" | "analysis" | "topics" | "sources" | "source";
 const PAGE_SIZE = 100;
@@ -72,7 +73,7 @@ export default function Newsroom({ mode }: { mode: NewsroomMode }) {
       </p>
     </header>
 
-    {loading && !articles.length ? <p role="status" className="py-14">Loading published coverage…</p> :
+    {loading && !articles.length ? <NewsroomLoading compact /> :
       error && !articles.length ? <p role="alert" className="py-10 text-red-700">{error}</p> : <>
       {mode==="topics" && <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {NEWS_DESKS.map(desk=>{

@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import SeoHead, { browserSiteOrigin } from "../lib/SeoHead";
 import { articlePath, collectionStructuredData } from "../lib/seo";
 import { newsDate, readNews } from "../lib/newsApi";
+import NewsroomLoading from "../components/NewsroomLoading";
 
 export default function Archives() {
   const [allArticles, setAllArticles] = useState<Article[]>([]);
@@ -66,7 +67,7 @@ export default function Archives() {
       </div>
 
       {error ? <p role="alert">{error}</p> : loading && allArticles.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">Retrieving archive data...</div>
+        <NewsroomLoading compact />
       ) : (
         <div className="space-y-6">
           {displayedArticles.length === 0 ? (

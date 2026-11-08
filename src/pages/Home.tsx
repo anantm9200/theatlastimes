@@ -4,6 +4,7 @@ import type { Article } from "../types";
 import SeoHead, { browserSiteOrigin } from "../lib/SeoHead";
 import NewsPhoto from "../components/NewsPhoto";
 import NewsReportCard from "../components/NewsReportCard";
+import NewsroomLoading from "../components/NewsroomLoading";
 import { articlePath, collectionStructuredData, DEFAULT_DESCRIPTION } from "../lib/seo";
 import { newsAge, newsDate, readNews } from "../lib/newsApi";
 import { frontPageSelection, NEWS_DESKS, reportAgeHours } from "../lib/frontPageSelection";
@@ -12,11 +13,13 @@ import type { SourceWireItem } from "../server/source-wire";
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState("");
   const [refreshedAt, setRefreshedAt] = useState(Date.now());
   const [sourceWire, setSourceWire] = useState<SourceWireItem[]>([]);
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
     // Revalidate as readers stay on the page. No background or fabricated updates.
     async function load() {
       try {
@@ -31,7 +34,7 @@ export default function Home() {
     void load();
     const refresh = setInterval(() => { if (!document.hidden) void load(); }, 120_000);
     return () => { controller.abort(); clearInterval(refresh); };
-  }, []);
+  }, [reloadKey]);
   useEffect(() => {
     const controller=new AbortController();
     async function loadWire() {
@@ -72,8 +75,17 @@ export default function Home() {
       </div>
     </div>
 
-    {loading && !articles.length ? <p className="py-20 text-center text-lg font-serif" role="status">Retrieving the latest verified reports…</p> :
-     error && !articles.length ? <div role="alert" className="border border-red-600 p-7"><p className="font-bold">The newsroom feed is temporarily unavailable.</p><p className="mt-2">{error}</p><Link to="/archives" className="underline block mt-4">Browse the archive</Link></div> :
+    {loading && !articles.length ? <NewsroomLoading /> :
+     error && !articles.length ? <section role="alert" className="min-h-[55vh] flex flex-col justify-center border-y border-zinc-300 py-12 sm:py-20">
+       <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-700">Newsroom connection</p>
+       <h2 className="mt-3 font-serif text-3xl font-bold sm:text-5xl">The news desk is taking a moment.</h2>
+       <p className="mt-4 max-w-xl text-base text-zinc-600">We couldn't retrieve the published reports just now. Your connection may be fine; the news service is temporarily slower than expected.</p>
+       <p className="mt-2 text-sm text-zinc-500">{error}</p>
+       <div className="mt-8 flex flex-wrap items-center gap-3">
+         <button type="button" onClick={() => setReloadKey(value => value + 1)} className="bg-zinc-950 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-red-700">Try loading again</button>
+         <Link to="/archives" className="border border-zinc-950 px-6 py-3 text-sm font-bold transition-colors hover:bg-zinc-100">Browse the archive</Link>
+       </div>
+     </section> :
      !hero ? <section className="py-20 text-center"><h2 className="font-serif text-3xl">No published reports yet</h2><p className="mt-4 text-muted-foreground">Publication is waiting for properly sourced and validated reporting.</p></section> : <>
       {!hasFresh && <div role="status" className="border-l-4 border-amber-700 bg-amber-50 text-amber-950 px-4 py-3 mb-7 text-sm">
         <strong>Newsroom update:</strong> The newest published report is {newsAge(desk.newest!.publishedAt)}. There is no verified fresh report to present as breaking news.

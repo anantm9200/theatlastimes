@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SeoHead from "../lib/SeoHead";
+import NewsroomLoading from "../components/NewsroomLoading";
 import type { SourceWireItem, SourceWireResult } from "../server/source-wire";
 
 function timeSince(iso: string) {
@@ -26,7 +27,7 @@ export default function SourceWire() {
       <h1 className="font-serif font-black text-4xl sm:text-6xl">Official source wire</h1>
       <p className="text-sm text-muted-foreground mt-4 max-w-3xl">A direct feed of recent source headlines. This wire does not use AI to invent or rewrite events, and headlines are not verified breaking reports. Open the original publisher for the full story.</p>
     </header>
-    {loading?<p role="status" className="py-12">Retrieving official source headlines…</p>:
+    {loading?<NewsroomLoading compact />:
     error?<p role="alert" className="text-red-700 py-10">{error}</p>:
     wire.length===0?<div className="border-l-4 border-border p-6"><p>No recent approved source headlines available. <Link to="/latest" className="underline">Browse published reports</Link>.</p></div>:
     grouped.map(group=><section key={group.category} className="mb-12">
