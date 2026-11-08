@@ -34,7 +34,9 @@ export async function pageContent(pathname: string, store: NewsStoreAdapter, ori
       source ? all.filter(article => article.sourceName.toLowerCase() === source.toLowerCase()) : all;
     title = `${label} | ${SITE_NAME}`;
     description = `Source-attributed ${label.toLowerCase()} from The Atlas Times global newsroom.`;
-    if (pathname === "/topics") {
+    if (pathname === "/wire") {
+      body = "<h1>Official source wire</h1><p>Recent, directly linked headlines from named official publishers. They are not independently verified or breaking reports from The Atlas Times.</p>";
+    } else if (pathname === "/topics") {
       body = `<h1>Editorial sections</h1>${NEWS_DESKS.map(desk => `<section><h2>${link(`/category/${desk.slug}`,desk.title)}</h2><p>${escapeHtml(desk.kicker)}</p></section>`).join("")}`;
     } else if (pathname === "/sources") {
       const publishers = [...new Set(all.map(article => article.sourceName))];
