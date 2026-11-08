@@ -7,12 +7,14 @@ import NewsReportCard from "../components/NewsReportCard";
 import { articlePath, collectionStructuredData, DEFAULT_DESCRIPTION } from "../lib/seo";
 import { newsAge, newsDate, readNews } from "../lib/newsApi";
 import { frontPageSelection, NEWS_DESKS, reportAgeHours } from "../lib/frontPageSelection";
+import type { SourceWireItem } from "../server/source-wire";
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshedAt, setRefreshedAt] = useState(Date.now());
+  const [sourceWire, setSourceWire] = useState<SourceWireItem[]>([]);
   useEffect(() => {
     const controller = new AbortController();
     // Revalidate as readers stay on the page. No background or fabricated updates.
@@ -30,6 +32,25 @@ export default function Home() {
     const refresh = setInterval(() => { if (!document.hidden) void load(); }, 120_000);
     return () => { controller.abort(); clearInterval(refresh); };
   }, []);
+  useEffect(() => {
+    const controller=new AbortController();
+    async function loadWire() {
+      try {
+        const response=await fetch("/api/source-wire",{signal:controller.signal});
+        if(!response.ok)return;
+        const value=await response.json();
+        if(!controller.signal.aborted && Array.isArray(value.data))setSourceWire(value.data);
+      }catch{ /* The core news feed remains readable if an external RSS source is unavailable. */ }
+    }
+    void loadWire();
+    const timer=setInterval(()=>{if(!document.hidden)void loadWire();},10*60_000);
+    return ()=>{controller.abort();clearInterval(timer);};
+  },[]);
+  const featuredWire = useMemo(()=>{
+    const first:SourceWireItem[] = [],seen=new Set<string>();
+    for(const item of sourceWire){if(!seen.has(item.publisher)){first.push(item);seen.add(item.publisher);}}
+    return [...first,...sourceWire.filter(item=>!first.some(same=>same.url===item.url))].slice(0,15);
+  },[sourceWire]);
   const desk = useMemo(() => frontPageSelection(articles, refreshedAt), [articles, refreshedAt]);
   const { hero, latest, breaking, sectioned, remaining, hasFresh } = desk;
   const heroBreaking = hero && breaking.some(item => item.id === hero.id);
@@ -62,6 +83,21 @@ export default function Home() {
         <span className="bg-[#b91c1c] text-white px-3 py-2 font-bold text-xs uppercase tracking-widest shrink-0">Breaking</span>
         <div className="min-w-0 flex flex-wrap gap-x-6 gap-y-1">{breaking.slice(0,3).map(item => <Link className="font-serif font-bold hover:underline" to={articlePath(item)} key={item.id}>{item.title}</Link>)}</div>
       </section> : null}
+
+      {featuredWire.length>0 && <section aria-labelledby="official-wire-heading" className="border-y border-border py-5 mb-10">
+        <div className="flex justify-between items-baseline gap-4 mb-5">
+          <div><p className="text-xs uppercase text-primary tracking-widest font-bold">Official sources · Direct links</p>
+            <h2 id="official-wire-heading" className="font-serif font-bold text-2xl sm:text-3xl">The source wire</h2></div>
+          <Link to="/wire" className="text-xs uppercase tracking-wide font-bold underline shrink-0">Full wire →</Link>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">External publisher headlines only. Not independently verified or labeled as breaking news.</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+          {featuredWire.slice(0,12).map(item=><article key={item.url} className="border-t border-border pt-3">
+            <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-serif text-base font-bold hover:text-primary leading-tight">{item.title} ↗</a>
+            <p className="text-xs mt-2 text-muted-foreground">{item.publisher} · {new Date(item.publishedAt).toLocaleDateString()}</p>
+          </article>)}
+        </div>
+      </section>}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,1fr)] gap-8 lg:gap-10 mb-12">
         <article className="min-w-0">
