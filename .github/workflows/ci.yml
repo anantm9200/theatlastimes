@@ -27,6 +27,8 @@ jobs:
         run: npm ci
       - name: Check types
         run: npm run lint
+      - name: Test public DGX gateway monitoring without network calls
+        run: node --test tests/production-health.test.mjs
       - name: Start isolated MongoDB replica set
         run: |
           docker run --detach --name atlas-mongo-test --publish 127.0.0.1:27017:27017 mongo:8.2 --replSet atlasTest --bind_ip_all
