@@ -1,7 +1,6 @@
 import { isIP } from "node:net";
 import { proxyToDgx } from "./dgx-proxy.js";
 import { CLIENT_SCRIPT, CLIENT_STYLESHEET } from "./client-assets.js";
-import { sourceWire } from "../src/server/source-wire.ts";
 
 // A pinned, separate Vercel alias for the previously deployed DGX-authenticated
 // gateway. It is NOT a Tailscale IP or a secret and must never point at this
@@ -61,6 +60,7 @@ export default async function handler(req, res) {
       return;
     }
     try {
+      const { sourceWire } = await import("./source-wire.js");
       const body = JSON.stringify(await sourceWire());
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
