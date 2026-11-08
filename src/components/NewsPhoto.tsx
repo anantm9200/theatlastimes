@@ -1,12 +1,23 @@
 import { useEffect, useState } from "react";
 import type { Article } from "../types";
 import { newsImage } from "../lib/newsApi";
+import { contextualImage, type ContextImage } from "../lib/contextualImage";
 
 /** Display only documented photos. When missing, use a clearly labeled editorial graphic. */
 export default function NewsPhoto({ article, priority = false, compact = false }: { article: Article; priority?: boolean; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [article.imageUrl]);
-  const src = newsImage(article);
+  const [context, setContext] = useState<ContextImage | undefined>();
+  useEffect(() => {
+    let active=true;
+    setFailed(false); setContext(undefined);
+    if(newsImage(article)==="/news-placeholder.svg") {
+      void contextualImage(article).then(photo=>{if(active)setContext(photo);});
+    }
+    return ()=>{active=false;};
+  }, [article.id,article.imageUrl]);
+  const original = newsImage(article);
+  const contextual = original==="/news-placeholder.svg" && !!context;
+  const src = contextual ? context!.url : original;
   const hasPhoto = !failed && src !== "/news-placeholder.svg";
   const aspect = compact ? "aspect-[16/10]" : "aspect-[16/9]";
   if (!hasPhoto) return <figure className="w-full my-0">
@@ -30,10 +41,11 @@ export default function NewsPhoto({ article, priority = false, compact = false }
       fetchPriority={priority ? "high" : "auto"} decoding="async" referrerPolicy="no-referrer"
       onError={() => setFailed(true)} className={`w-full ${aspect} object-cover border border-border`} />
     <figcaption className="text-xs text-muted-foreground mt-2 leading-relaxed">
+      {contextual ? <>{context!.credit} · {context!.license} · {context!.caption} · <a href={context!.source} className="underline" target="_blank" rel="noopener noreferrer">Wikimedia Commons source</a></> : <>
       {article.imageType === "publisher" ? <>Publisher-authorized image · <a href={article.originalUrl} target="_blank" rel="noopener noreferrer" className="underline">{article.sourceName}</a></> : article.imageCredit}
       {article.imageLicense && <> · {article.imageLicense}</>}
       {article.imageCaption && <> · {article.imageCaption}</>}
-      {article.imageSource?.startsWith("https://") && <> · <a href={article.imageSource} className="underline" target="_blank" rel="noopener noreferrer">Image source</a></>}
+      {article.imageSource?.startsWith("https://") && <> · <a href={article.imageSource} className="underline" target="_blank" rel="noopener noreferrer">Image source</a></>}</>}
     </figcaption>
   </figure>;
 }
