@@ -55,7 +55,7 @@ export default function Feed() {
        <Link to="/latest" className="mt-5 block underline font-bold">Read latest reports →</Link>
      </div>:<>
        <div className="grid md:grid-cols-2 gap-8 border-b border-border pb-10 mb-10 items-center">
-         <Link to={articlePath(lead)}><NewsPhoto article={lead} priority /></Link>
+         <NewsPhoto article={lead} priority />
          <div><p className="text-xs uppercase tracking-widest text-primary font-bold mb-3">Lead report · {lead.category}</p>
            <Link to={articlePath(lead)} className="hover:text-primary"><h2 className="font-serif font-black text-3xl sm:text-4xl leading-tight">{lead.title}</h2></Link>
            <p className="mt-5 font-serif text-muted-foreground line-clamp-5">{lead.aiSummary||lead.snippet}</p>
