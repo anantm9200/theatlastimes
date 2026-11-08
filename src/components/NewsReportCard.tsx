@@ -6,7 +6,7 @@ import NewsPhoto from "./NewsPhoto";
 
 export default function NewsReportCard({ article, image = false, compact = false }: { article: Article; image?: boolean; compact?: boolean }) {
   return <article className="flex flex-col min-w-0 h-full border-t border-border pt-4 group">
-    {image && <Link to={articlePath(article)} className="block mb-4"><NewsPhoto article={article} compact /></Link>}
+    {image && <div className="mb-4"><NewsPhoto article={article} compact /></div>}
     <Link to={articlePath(article)} className="block">
       <p className="text-[11px] font-bold tracking-widest uppercase text-primary mb-2">{article.category}</p>
       <h3 className={`font-serif font-bold leading-snug group-hover:text-primary ${compact ? "text-lg" : "text-xl lg:text-2xl"}`}>{article.title}</h3>
