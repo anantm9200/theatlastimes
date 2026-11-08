@@ -21,6 +21,7 @@ import { rateLimitClientKey } from "./src/server/client-ip";
 import { constantEqual, EditorSessions, sessionToken, writeSessionCookie } from "./src/server/editor-sessions";
 import { Publishers, NEWS_CATEGORIES } from "./src/server/publishers";
 import { publicArticle } from "./src/server/public-article";
+import { sourceWire } from "./src/server/source-wire";
 
 function integer(value: unknown, fallback: number, max: number) {
   if (value === undefined) return fallback;
@@ -81,6 +82,7 @@ export function createApp(store: NewsStoreAdapter = new NewsStore(), jobs?: Mong
     try { await store.count(); res.json({ status: "ok", storage: "ready" }); }
     catch { res.status(503).json({ status: "unavailable", storage: "unavailable" }); }
   });
+  route("get", "/api/source-wire", async (_req, res) => res.json(await sourceWire()));
   route("get", "/api/news", async (req, res, next) => {
     try {
       const limit = integer(req.query.limit, 100, 1000);
