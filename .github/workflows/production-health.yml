@@ -1,0 +1,30 @@
+name: Atlas production availability and freshness
+
+on:
+  schedule:
+    - cron: "20 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-production-health
+  cancel-in-progress: true
+
+jobs:
+  check-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22"
+      - name: Check production response and publication freshness
+        env:
+          ATLAS_SITE_URL: "https://www.theatlastimes.com"
+          ATLAS_MAX_ARTICLE_AGE_HOURS: "48"
+        run: node scripts/production-health.mjs
